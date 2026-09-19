@@ -44,7 +44,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -395,10 +395,36 @@ def report(entity_key: str, window: int | None = Query(default=None, ge=1)) -> H
 
 
 # --------------------------------------------------------------------------
+# The written record
+# --------------------------------------------------------------------------
+# Mounted BEFORE "/" on purpose. Route matching is in order, so a "/" mount
+# registered first swallows every other path -- the documents page would 404
+# with no obvious cause.
+DOCS_DIR = ROOT / "docs"
+if DOCS_DIR.exists():
+    app.mount("/documents", StaticFiles(directory=str(DOCS_DIR)), name="documents")
+
+
+# --------------------------------------------------------------------------
 # The dashboard itself
 # --------------------------------------------------------------------------
 if FRONTEND_DIR.exists() and (FRONTEND_DIR / "netra.html").exists():
-    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="dashboard")
+    # An explicit route for the shell. `StaticFiles(html=True)` serves
+    # `index.html` for a directory request, and our entry point is `netra.html`
+    # -- so mounting alone served every ASSET correctly while "/" itself 404'd.
+    @app.get("/", include_in_schema=False)
+    def dashboard_shell() -> FileResponse:
+        return FileResponse(FRONTEND_DIR / "netra.html")
+
+    app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
+    # The vendored assets and app.js are referenced relatively from the shell, so
+    # they also need to resolve at their plain paths.
+    for asset in ("app.css", "app.js"):
+        app.add_api_route(
+            f"/{asset}", lambda name=asset: FileResponse(FRONTEND_DIR / name),
+            include_in_schema=False,
+        )
+    app.mount("/vendor", StaticFiles(directory=str(FRONTEND_DIR / "vendor")), name="vendor")
 else:  # pragma: no cover - only until the frontend lands
     @app.get("/", include_in_schema=False)
     def dashboard_placeholder() -> JSONResponse:

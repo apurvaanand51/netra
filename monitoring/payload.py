@@ -45,6 +45,7 @@ from ml.features import FEATURE_COLUMNS, build_feature_table, feature_matrix
 from ml.graph import analyse_graph, sink_entities, trace_funds
 from ml.patterns import all_structural_features
 from ml.risk import FEATURE_LABELS, RiskModel, band_for
+from monitoring.corpus import behaviour_composition, corpus_statistics
 from monitoring.store import MonitoringStore
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -579,6 +580,22 @@ def build_window_payload(
         value for amounts in frame["output_amounts"] for value in amounts
     ))
 
+    # Analysis of EVERYTHING ingested, not only the flagged part. The suspicious
+    # subset is reported as a share of this whole, because "this group moved 62
+    # BTC" is meaningless until the reader knows what ordinary looks like here.
+    # A frame for the corpus statistics, built from the SAME risk numbers the
+    # lead rail uses -- from the store, not a fresh prediction. If the two were
+    # computed separately they could disagree, and the whole-corpus analysis
+    # would then describe a different run than the lead list beside it.
+    scored = pd.DataFrame([
+        {"entity_id": entity_id, "risk": risk, "anomaly": anomaly,
+         "role": roles.get(entity_id, "wallet")}
+        for risk, anomaly, entity_id in ranked
+    ])
+
+    corpus = corpus_statistics(frame, corr, scored, load_report)
+    behaviour = behaviour_composition(corr, structural, scored)
+
     payload: dict[str, Any] = {
         "meta": {
             "records": int(len(frame)),
@@ -621,6 +638,8 @@ def build_window_payload(
         "metrics": metrics,
         "events": event_rows,
         "traces": traces,
+        "corpus": corpus,
+        "behaviour": behaviour,
     }
     return payload
 
@@ -650,6 +669,14 @@ def _load_metrics(models_dir: Path) -> dict[str, Any]:
         "cluster_ari": value("cluster_ari"),
         "anomaly_precision_at_k": value("anomaly_precision_at_k"),
         "anomaly_k": int(stored.get("anomaly_k", 20)),
+        # Calibration and the partitioning quality: both are measured, and both
+        # were missing from the first version of this mapping -- which showed up
+        # as a dashboard row reading "Confidence honesty: —" for a number we do
+        # in fact have.
+        "brier": value("brier"),
+        "expected_calibration_error": value("expected_calibration_error"),
+        "modularity": value("modularity"),
+        "cv_folds": value("cv_folds") or (value("folds")),
         "true_positives": value("true_positives"),
         "false_positives": value("false_positives"),
         "false_negatives": value("false_negatives"),

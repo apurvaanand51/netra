@@ -111,6 +111,9 @@ def build_training_data(data_dir: Path | str):
 def measure(data, test_size: float, seed: int, folds: int) -> tuple[dict, np.ndarray]:
     """Compute every reported metric, plus the held-out probabilities."""
     matrix, labels = data["matrix"], data["labels"]
+    # None for a single-batch dataset; the batch id per row for a windowed one.
+    # Passing it makes every cross-validation here grouped rather than random.
+    groups = data.get("groups")
     metrics: dict = {
         "evaluated_on": "planted ground truth (cross-validated + held-out split)",
         "n_entities": int(len(labels)),
@@ -122,12 +125,14 @@ def measure(data, test_size: float, seed: int, folds: int) -> tuple[dict, np.nda
     }
 
     # ---- cross-validation: the headline numbers ----
-    metrics.update(cross_validate(matrix, labels, FEATURE_COLUMNS, folds=folds, seed=seed))
-    metrics.update(logistic_baseline(matrix, labels, folds=folds, seed=seed))
+    metrics.update(cross_validate(matrix, labels, FEATURE_COLUMNS, folds=folds, seed=seed,
+                                  groups=groups))
+    metrics.update(logistic_baseline(matrix, labels, folds=folds, seed=seed, groups=groups))
 
     # ---- the three rule experiments ----
     metrics.update(rules_only_baseline(data["table"], labels))
-    metrics.update(ablation(matrix, labels, FEATURE_COLUMNS, folds=folds, seed=seed))
+    metrics.update(ablation(matrix, labels, FEATURE_COLUMNS, folds=folds, seed=seed,
+                            groups=groups))
 
     # ---- held-out split: a second, independent view ----
     can_stratify = len(np.unique(labels)) > 1 and np.bincount(labels).min() >= 2
@@ -215,6 +220,7 @@ def build_windowed_training_data(data_dir: Path | str, prefix: str = "train-wind
 
     matrices: list[np.ndarray] = []
     label_arrays: list[np.ndarray] = []
+    group_arrays: list[np.ndarray] = []
     tables: list[pd.DataFrame] = []
     typologies: dict[str, str] = {}
     per_window: list[dict] = []
@@ -237,6 +243,10 @@ def build_windowed_training_data(data_dir: Path | str, prefix: str = "train-wind
 
         matrices.append(feature_matrix(table))
         label_arrays.append(window_labels)
+        # The batch id per row. Cross-validation MUST respect these: the same
+        # wallet appears once per batch, so a random split puts near-copies of a
+        # test row into the training fold and flatters the score.
+        group_arrays.append(np.full(len(window_labels), label))
         tables.append(table)
         per_window.append({
             "label": label,
@@ -246,6 +256,7 @@ def build_windowed_training_data(data_dir: Path | str, prefix: str = "train-wind
 
     matrix = np.vstack(matrices) if matrices else np.zeros((0, len(FEATURE_COLUMNS)))
     labels = np.concatenate(label_arrays) if label_arrays else np.zeros(0, dtype=int)
+    groups = np.concatenate(group_arrays) if group_arrays else np.zeros(0, dtype=object)
     pooled_table = pd.concat(tables, ignore_index=True)
 
     # Cluster quality and graph structure are properties of the whole capture,
@@ -258,7 +269,7 @@ def build_windowed_training_data(data_dir: Path | str, prefix: str = "train-wind
         "frame": frame, "report": report, "corr": full_corr,
         "graph": analyse_graph(full_corr, full_structural),
         "structural": full_structural, "table": pooled_table,
-        "matrix": matrix, "labels": labels, "typology": typologies,
+        "matrix": matrix, "labels": labels, "groups": groups, "typology": typologies,
         "address_owner": address_owner, "entity_typology": entity_typology,
         "windows": per_window,
     }

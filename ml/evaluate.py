@@ -306,13 +306,25 @@ def cross_validate(
     feature_names: list[str],
     folds: int = 5,
     seed: int = 42,
+    groups: np.ndarray | None = None,
 ) -> dict:
-    """5-fold stratified CV for the risk model.
+    """Stratified k-fold CV for the risk model.
+
+    `groups` matters and is not optional in spirit. When the training set is
+    pooled across batches, the SAME wallet appears in several rows -- once per
+    batch -- and rows from one batch share whatever was happening that day. A
+    random fold split therefore puts near-copies of a test row in the training
+    fold, and the score is flattered by leakage.
+
+    Passing the batch id per row switches to `StratifiedGroupKFold`, which keeps
+    every batch whole on one side of the split. With five batches that is
+    effectively leave-one-batch-out, which is the question we actually want
+    answered: how well does this do on a batch it has never seen?
 
     Refits from scratch on every fold -- a fresh model per fold, not a
     warm-started one -- and reports mean and standard deviation. The standard
-    deviation is the point: with eleven positives in a single test split, telling
-    a judge "AUC 0.94" without saying how much it moves between splits is
+    deviation is the point: with eleven positives in a single test split,
+    quoting an AUC without saying how much it moves between splits is
     overclaiming.
     """
     from ml.risk import RiskModel
@@ -323,10 +335,23 @@ def cross_validate(
     if usable_folds < 2:
         return {"folds": 0, "note": "not enough of both classes to cross-validate"}
 
-    splitter = StratifiedKFold(n_splits=usable_folds, shuffle=True, random_state=seed)
+    grouped = groups is not None and len(np.unique(groups)) >= 2
+    if grouped:
+        from sklearn.model_selection import StratifiedGroupKFold
+
+        unique_groups = int(len(np.unique(groups)))
+        usable_folds = max(2, min(usable_folds, unique_groups))
+        splitter = StratifiedGroupKFold(n_splits=usable_folds, shuffle=True, random_state=seed)
+        splits = splitter.split(X, y, groups)
+        method = f"StratifiedGroupKFold on {unique_groups} batches (no batch split across folds)"
+    else:
+        splitter = StratifiedKFold(n_splits=usable_folds, shuffle=True, random_state=seed)
+        splits = splitter.split(X, y)
+        method = "StratifiedKFold (rows assumed independent)"
+
     per_fold: list[dict] = []
 
-    for train_index, test_index in splitter.split(X, y):
+    for train_index, test_index in splits:
         model = RiskModel(random_state=seed)
         model.fit(X[train_index], y[train_index], feature_names)
         probabilities = model.predict_proba(X[test_index])
@@ -346,7 +371,7 @@ def cross_validate(
             return None, None
         return float(np.mean(values)), float(np.std(values))
 
-    summary: dict = {"folds": usable_folds, "per_fold": per_fold}
+    summary: dict = {"folds": usable_folds, "cv_method": method, "per_fold": per_fold}
     for key in ("auc", "precision", "recall", "f1", "precision_at_k"):
         mean, deviation = aggregate(key)
         summary[f"cv_{key}_mean"] = mean
@@ -392,12 +417,17 @@ def ablation(
     drop: list[str] | None = None,
     folds: int = 5,
     seed: int = 42,
+    groups: np.ndarray | None = None,
 ) -> dict:
     """Cross-validate again with every rule-derived feature removed.
 
     If the model still separates the classes without them, the signal came from
     the measured traffic -- not from our own detectors echoed back at us. That is
     a measurement, not an argument.
+
+    Uses the same grouped split as the headline CV. An ablation evaluated on
+    easier splits than the model it is compared against would be a rigged
+    comparison, even by accident.
     """
     drop = drop if drop is not None else RULE_DERIVED_FEATURES
     keep = [index for index, name in enumerate(feature_names) if name not in set(drop)]
@@ -406,7 +436,7 @@ def ablation(
 
     reduced = X[:, keep]
     names = [feature_names[index] for index in keep]
-    result = cross_validate(reduced, y, names, folds=folds, seed=seed)
+    result = cross_validate(reduced, y, names, folds=folds, seed=seed, groups=groups)
     return {
         "ablation_dropped_features": sorted(set(feature_names) - set(names)),
         "ablation_features_remaining": len(names),
@@ -544,7 +574,10 @@ def summary_table(metrics: dict) -> str:
     return "\n".join(lines)
 
 
-def logistic_baseline(X: np.ndarray, y: np.ndarray, folds: int = 5, seed: int = 42) -> dict:
+def logistic_baseline(
+    X: np.ndarray, y: np.ndarray, folds: int = 5, seed: int = 42,
+    groups: np.ndarray | None = None,
+) -> dict:
     """A deliberately simple model, for the model-selection table.
 
     Included so the RandomForest is a CHOICE with evidence behind it rather than
@@ -557,9 +590,18 @@ def logistic_baseline(X: np.ndarray, y: np.ndarray, folds: int = 5, seed: int = 
     if usable < 2:
         return {"logistic_auc_mean": None}
 
-    splitter = StratifiedKFold(n_splits=usable, shuffle=True, random_state=seed)
+    if groups is not None and len(np.unique(groups)) >= 2:
+        from sklearn.model_selection import StratifiedGroupKFold
+
+        usable = max(2, min(usable, len(np.unique(groups))))
+        splitter = StratifiedGroupKFold(n_splits=usable, shuffle=True, random_state=seed)
+        splits = splitter.split(X, y, groups)
+    else:
+        splitter = StratifiedKFold(n_splits=usable, shuffle=True, random_state=seed)
+        splits = splitter.split(X, y)
+
     aucs: list[float] = []
-    for train_index, test_index in splitter.split(X, y):
+    for train_index, test_index in splits:
         model = LogisticRegression(max_iter=2000, class_weight="balanced", random_state=seed)
         model.fit(X[train_index], y[train_index])
         probabilities = model.predict_proba(X[test_index])[:, 1]

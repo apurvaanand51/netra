@@ -1,0 +1,19 @@
+{
+  "documents": [
+    {
+      "file": "CHANGELOG.md",
+      "title": "What changed, v1 → v2",
+      "description": "Every change from the first working version, with the measured before and after."
+    },
+    {
+      "file": "MODEL_CARD.md",
+      "title": "Model card",
+      "description": "What the models were trained on, how well they do, and what they must not be used for."
+    },
+    {
+      "file": "REIDEATION.md",
+      "title": "The review that reshaped it",
+      "description": "The doubts we hit, the false alarm we retracted, and why the project was rebuilt."
+    }
+  ]
+}

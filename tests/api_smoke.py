@@ -183,10 +183,27 @@ def main() -> int:
         check("POST /reload -> 200", response.status_code == 200, response.text[:200])
         check("reload reports cleared caches", "cleared_caches" in response.json())
 
-        print("\n=== dashboard placeholder ===")
+        print("\n=== dashboard and documents ===")
         response = client.get("/")
-        check("GET / -> served (placeholder until the UI lands)",
-              response.status_code == 200)
+        check("GET / serves the dashboard", response.status_code == 200)
+        check("dashboard is the console, not a placeholder",
+              "NETRA" in response.text and "v-console" in response.text)
+
+        response = client.get("/documents/index.json")
+        check("GET /documents/index.json -> 200", response.status_code == 200, response.text[:200])
+        documents = response.json()["documents"]
+        check("document index lists documents", len(documents) >= 3)
+        for doc in documents:
+            response = client.get(f"/documents/{doc['file']}")
+            check(f"document served offline: {doc['file']}", response.status_code == 200)
+
+        for asset in ("app.css", "app.js", "vendor/vis-network.min.js", "vendor/chart.umd.min.js"):
+            response = client.get(f"/{asset}")
+            check(f"vendored asset served: {asset}", response.status_code == 200, response.text[:120])
+
+        console = client.get("/").text
+        check("no CDN references in the dashboard shell",
+              "cdn." not in console and "http://" not in console and "https://" not in console)
 
     print(f"\n  {len(PASSED)} passed, {len(FAILED)} failed")
     if FAILED:

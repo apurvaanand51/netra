@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NETRA — Bitcoin traffic investigation console</title>
+<link rel="stylesheet" href="vendor/fonts.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<!-- =====================================================================
+     TOP BAR — context, replay transport, live counts.
+     Every number in this app is window-scoped, so the window has to be the
+     first thing on screen; otherwise "risk 92" has no time reference at all.
+     ===================================================================== -->
+<header class="topbar">
+  <div class="brand">
+    <span class="wordmark">NETRA</span>
+    <span class="sub">Team Vortex · SIH 2026 · PS SIH26146</span>
+  </div>
+
+  <div class="transport" id="transport" hidden>
+    <button class="btn icon" id="firstBtn" title="First window">&#9198;</button>
+    <button class="btn icon" id="prevBtn" title="Previous window">&#9664;</button>
+    <button class="btn icon play" id="playBtn" title="Replay the windows">&#9654;</button>
+    <button class="btn icon" id="nextBtn" title="Next window">&#9654;&#9654;</button>
+    <div class="scrub" id="scrub" role="slider" aria-label="Window"></div>
+    <div class="windowLabel" id="windowLabel"><span class="mono">&mdash;</span></div>
+  </div>
+
+  <div class="counters" id="counters" hidden>
+    <div><span>transactions read</span><strong class="mono" id="cRecords">&mdash;</strong></div>
+    <div><span>wallet groups</span><strong class="mono" id="cEntities">&mdash;</strong></div>
+    <div><span>worth a look</span><strong class="mono" id="cFlagged">&mdash;</strong></div>
+  </div>
+
+  <div class="toggles">
+    <button class="btn" id="explainBtn" title="Turn on plain-language notes for every number">
+      <span class="dot"></span> Explain mode
+    </button>
+    <button class="btn" id="tourBtn" title="Guided tour">Tour</button>
+    <button class="btn icon" id="themeBtn" title="Light / dark">&#9681;</button>
+  </div>
+</header>
+
+<!-- =====================================================================
+     VIEW 1 — START. The front door, written for someone who has never seen
+     a blockchain. No jargon appears above the fold.
+     ===================================================================== -->
+<main>
+<section class="view on" id="v-start">
+  <div class="startWrap">
+    <div class="startLeft">
+      <h1>Find the wallets worth investigating — and show the evidence.</h1>
+      <p class="lede">
+        Bitcoin transactions are public, but they are not named. NETRA reads a bulk
+        dump of network traffic and transaction records, works out
+        <b>which wallets are controlled by the same person</b>, works out
+        <b>which IP addresses controlled them</b>, and then ranks the ones that
+        behave like money laundering — with the reason attached to each one.
+      </p>
+
+      <ol class="howItWorks">
+        <li>
+          <span class="stepNo">1</span>
+          <div><b>Read the traffic.</b> Any of CSV, JSON, XML or a SQLite database.
+          Rows that cannot be parsed are <em>reported</em>, never quietly dropped.</div>
+        </li>
+        <li>
+          <span class="stepNo">2</span>
+          <div><b>Group wallets into people.</b> In Bitcoin you must sign for every
+          wallet you spend from, so wallets spent together belong to one owner.</div>
+        </li>
+        <li>
+          <span class="stepNo">3</span>
+          <div><b>Join the two worlds.</b> We match the IP that broadcast a transaction
+          with the wallet it moved — that is how a wallet gets a country.</div>
+        </li>
+        <li>
+          <span class="stepNo">4</span>
+          <div><b>Rank, and explain.</b> Two trained models score every group, and each
+          score comes with the factors that produced it and the money trail it follows.</div>
+        </li>
+      </ol>
+
+      <div class="startActions">
+        <button class="btn primary lg" id="demoBtn">Run on the built-in dataset</button>
+        <label class="btn lg" for="fileInput">Or upload your own file</label>
+        <input type="file" id="fileInput" hidden accept=".csv,.txt,.json,.xml,.sqlite,.sqlite3,.db">
+      </div>
+
+      <div class="gate" id="gate" hidden>
+        <h3>What we made of that file</h3>
+        <div class="gateGrid" id="gateGrid"></div>
+        <div class="gateReasons" id="gateReasons"></div>
+      </div>
+    </div>
+
+    <aside class="startRight">
+      <h3>What you are about to see</h3>
+      <p class="muted">
+        The console has four panels. Each one answers a different question an
+        investigator actually asks, in the order they ask it.
+      </p>
+      <div class="blurb">
+        <b>What changed?</b>
+        <span>A live feed of events since the last batch — a wallet that got riskier,
+        one that went quiet, one that suddenly gained addresses.</span>
+      </div>
+      <div class="blurb">
+        <b>How does it fit together?</b>
+        <span>A map of money moving between wallet groups, with dashed links showing
+        which IP addresses were controlling them.</span>
+      </div>
+      <div class="blurb">
+        <b>Why this one?</b>
+        <span>The evidence for the selected lead: which factors pushed the score up,
+        what pushed it down, and where the money went afterwards.</span>
+      </div>
+      <div class="blurb">
+        <b>Is the data sound?</b>
+        <span>How much traffic was read, what was rejected and why, and whether this
+        batch looks like the data the models were trained on.</span>
+      </div>
+      <p class="muted small">
+        Everything here runs on this machine. No internet connection is used or
+        needed — that is a requirement of the problem statement, not a preference.
+      </p>
+    </aside>
+  </div>
+</section>
+
+<!-- =====================================================================
+     VIEW 2 — CONSOLE. The workspace.
+     ===================================================================== -->
+<section class="view" id="v-console">
+  <div class="cols">
+
+    <!-- COLUMN 1: what changed -->
+    <section class="col col-feed">
+      <div class="colHead">
+        <h2>What changed</h2>
+        <span class="count mono" id="eventCount">&mdash;</span>
+      </div>
+      <p class="colHint">
+        Events since the previous batch. A wallet that is high-risk but unchanged is
+        not news; a wallet that just <em>became</em> high-risk is.
+      </p>
+      <div class="filters" id="eventFilters"></div>
+      <div class="feed" id="feed"></div>
+      <div class="empty" id="feedEmpty" hidden>
+        <b>No changes in this batch.</b>
+        <span>Nothing crossed a threshold, went quiet, or merged. That is a valid
+        result — an unchanged week looks like this.</span>
+      </div>
+    </section>
+
+    <!-- COLUMN 2: the map -->
+    <section class="col col-graph">
+      <div class="colHead">
+        <h2>How it fits together</h2>
+        <div class="chips" id="graphChips">
+          <button class="chip on" data-mode="risk">Risk</button>
+          <button class="chip" data-mode="community">Groups</button>
+          <button class="chip" data-mode="role">Roles</button>
+          <button class="chip" data-mode="trace">Money trail</button>
+        </div>
+      </div>
+      <div class="graphWrap">
+        <div id="graph"></div>
+        <div class="graphLegend">
+          <span><i class="sw round"></i> wallet group</span>
+          <span><i class="sw square"></i> IP address</span>
+          <span><i class="sw line solid"></i> money moved</span>
+          <span><i class="sw line dashed"></i> controlled from</span>
+          <span class="muted" id="graphNote"></span>
+        </div>
+        <div class="empty overlay" id="graphEmpty" hidden>
+          <b>No transfers at this scale.</b>
+          <span>The map only draws transfers above a size threshold, so a batch with
+          only small payments shows nothing here. Try another window.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- COLUMN 3: the evidence -->
+    <section class="col col-lead">
+      <div class="colHead">
+        <h2>Why this one</h2>
+        <span class="count mono" id="leadId">&mdash;</span>
+      </div>
+      <div class="empty" id="leadEmpty">
+        <b>No lead selected.</b>
+        <span>Pick a card from <em>What changed</em>, or a node on the map, to see the
+        evidence behind it.</span>
+      </div>
+      <div id="lead" hidden>
+        <div class="leadHead">
+          <div class="riskBig">
+            <strong class="mono" id="leadRisk">0</strong>
+            <span class="band" id="leadBand">&mdash;</span>
+          </div>
+          <div class="leadMeta">
+            <div id="leadLabel" class="mono">&mdash;</div>
+            <div class="muted small" id="leadRoleLine">&mdash;</div>
+            <div class="muted small" id="leadGeo">&mdash;</div>
+          </div>
+        </div>
+
+        <div class="leadActions">
+          <button class="btn sm" id="reportBtn">Case report</button>
+          <button class="btn sm" id="ackBtn">Acknowledge</button>
+          <span class="muted small" id="ackState"></span>
+        </div>
+
+        <h3>What pushed this score up or down</h3>
+        <p class="hint" id="waterfallHint">
+          Each bar is one measurable fact about this wallet group. Bars to the right
+          pushed the score <em>up</em>; bars to the left argued <em>against</em> suspicion.
+        </p>
+        <div class="waterfall" id="waterfall"></div>
+        <div class="reconcile mono" id="reconcile"></div>
+
+        <h3>In plain words</h3>
+        <div class="reasons" id="reasons"></div>
+
+        <h3>Risk over time</h3>
+        <p class="hint">How this group's score has moved batch by batch.
+          A flat line is not the same as a spike.</p>
+        <canvas id="historyChart" height="120"></canvas>
+
+        <h3>Where the money went</h3>
+        <p class="hint">
+          Estimated, not observed. Bitcoin is fungible, so once money is mixed no one
+          can say which coin went where — this is a proportional estimate and is
+          labelled as one everywhere it appears.
+        </p>
+        <div class="traces" id="traces"></div>
+      </div>
+    </section>
+
+    <!-- COLUMN 4: the watch floor -->
+    <section class="col col-fleet">
+      <div class="colHead"><h2>Is the data sound</h2></div>
+      <div class="fleet" id="fleet"></div>
+
+      <div class="colHead"><h2>Where it operates</h2></div>
+      <p class="colHint">Countries the flagged wallet groups were controlled from.</p>
+      <div class="geo" id="geo"></div>
+
+      <div class="colHead"><h2>How well it works</h2></div>
+      <p class="colHint">Measured against a dataset where we planted known cases, so
+        these are real numbers rather than claims.</p>
+      <div class="metrics" id="metrics"></div>
+      <button class="btn sm wide" id="docsBtn">Read how it was built &rarr;</button>
+    </section>
+  </div>
+</section>
+
+<!-- =====================================================================
+     VIEW 3 — DOCS. The written record, inside the app.
+     ===================================================================== -->
+<section class="view" id="v-docs">
+  <div class="docsWrap">
+    <nav class="docsNav">
+      <button class="btn sm wide" id="backBtn">&larr; Back to console</button>
+      <h3>Documents</h3>
+      <ul id="docList"></ul>
+      <p class="muted small">
+        These are the project's own working documents, rendered as written. They
+        include the review that reshaped the project and the problems we found and
+        reported against ourselves.
+      </p>
+    </nav>
+    <article class="docsBody" id="docBody">
+      <div class="empty"><b>Pick a document.</b><span>Everything is readable offline.</span></div>
+    </article>
+  </div>
+</section>
+</main>
+
+<!-- =====================================================================
+     BOTTOM STRIP — the honesty strip. Always visible, always true.
+     ===================================================================== -->
+<footer class="strip">
+  <span class="mono" id="stripProvenance">&mdash;</span>
+  <span class="spacer"></span>
+  <span class="mono" id="stripGenerated"></span>
+  <button class="btn sm" id="reloadBtn">Reload state</button>
+  <span class="mono" id="stripApi"></span>
+</footer>
+
+<!-- tooltip / explain popover -->
+<div class="pop" id="pop" hidden></div>
+
+<!-- modal: case dossier -->
+<div class="modal" id="modal" hidden>
+  <div class="modalBox">
+    <div class="modalHead">
+      <h3 id="modalTitle">Case report</h3>
+      <button class="btn icon" id="modalClose">&times;</button>
+    </div>
+    <iframe id="modalFrame" title="Case report"></iframe>
+  </div>
+</div>
+
+<!-- guided tour -->
+<div class="tourRing" id="tourRing" hidden></div>
+<div class="tourPop" id="tourPop" hidden>
+  <h4 id="tourTitle"></h4>
+  <p id="tourBody"></p>
+  <div class="tourFoot">
+    <span class="mono" id="tourStep"></span>
+    <span class="spacer"></span>
+    <button class="btn sm" id="tourBack">Back</button>
+    <button class="btn sm primary" id="tourNext">Next</button>
+    <button class="btn sm" id="tourEnd">Done</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="vendor/vis-network.min.js"></script>
+<script src="vendor/chart.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
