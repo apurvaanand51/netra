@@ -169,17 +169,36 @@ def windows() -> dict[str, Any]:
         }
 
 
-@app.get("/results", summary="The contract payload for a window")
-def results(window: int | None = Query(default=None, ge=1)) -> dict[str, Any]:
+@app.get("/results", summary="The contract payload for a window, or for every batch")
+def results(window: str | None = Query(default=None)) -> dict[str, Any]:
+    """`window=<id>` for one batch; `window=all` for the complete dataset.
+
+    The traffic analysis page uses `all`, because the problem statement asks to
+    analyse the ingested traffic and one slice of it is not that. Union mode
+    correlates every batch together and reports per-entity risk as the PEAK the
+    group reached -- the question there is "what is in this data", and a group
+    that was critical in any batch belongs in the answer.
+    """
     with _open_store() as store:
         records = store.windows()
         if not records:
             raise HTTPException(status_code=409, detail="no windows recorded")
-        window_id = window or records[-1].window_id
-        if window_id not in {record.window_id for record in records}:
-            raise HTTPException(status_code=404, detail=f"no such window: {window_id}")
 
-        cache = _payload_cache_path(window_id)
+        if window == "all":
+            window_id: int | None = None
+            cache = _payload_cache_path(0)
+        else:
+            try:
+                window_id = int(window) if window else records[-1].window_id
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail="window must be a batch id or 'all'",
+                ) from None
+            if window_id not in {record.window_id for record in records}:
+                raise HTTPException(status_code=404, detail=f"no such window: {window_id}")
+            cache = _payload_cache_path(window_id)
+
         if cache.exists():
             return json.loads(cache.read_text(encoding="utf-8"))
 
@@ -408,23 +427,15 @@ if DOCS_DIR.exists():
 # --------------------------------------------------------------------------
 # The dashboard itself
 # --------------------------------------------------------------------------
-if FRONTEND_DIR.exists() and (FRONTEND_DIR / "netra.html").exists():
-    # An explicit route for the shell. `StaticFiles(html=True)` serves
-    # `index.html` for a directory request, and our entry point is `netra.html`
-    # -- so mounting alone served every ASSET correctly while "/" itself 404'd.
-    @app.get("/", include_in_schema=False)
-    def dashboard_shell() -> FileResponse:
-        return FileResponse(FRONTEND_DIR / "netra.html")
-
-    app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
-    # The vendored assets and app.js are referenced relatively from the shell, so
-    # they also need to resolve at their plain paths.
-    for asset in ("app.css", "app.js"):
-        app.add_api_route(
-            f"/{asset}", lambda name=asset: FileResponse(FRONTEND_DIR / name),
-            include_in_schema=False,
-        )
-    app.mount("/vendor", StaticFiles(directory=str(FRONTEND_DIR / "vendor")), name="vendor")
+if (FRONTEND_DIR / "index.html").exists():
+    # One mount serves the whole site. `html=True` resolves a directory request to
+    # `index.html`, which is why the entry point is now named index.html -- with
+    # the old name the mount served every asset correctly while "/" itself 404'd.
+    #
+    # Static pages, not a single-page app: each page has its own URL, its own
+    # question, and a browser that can revisit, bookmark and print it. No build
+    # step, no framework, and nothing fetched at runtime.
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="site")
 else:  # pragma: no cover - only until the frontend lands
     @app.get("/", include_in_schema=False)
     def dashboard_placeholder() -> JSONResponse:

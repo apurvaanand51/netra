@@ -354,11 +354,11 @@
 
     "WindowInfo": {
       "type": "object",
-      "description": "Which slice of time this payload covers. Every number in a monitoring payload is window-scoped, so the window has to be on screen.",
+      "description": "Which slice of time this payload covers. Every number in a monitoring payload is window-scoped, so the window has to be on screen. `id` 0 means the payload covers EVERY batch ingested, and `index`/`total` then describe the sequence taken as a whole.",
       "required": ["id", "label", "start", "end"],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "integer", "minimum": 1 },
+        "id": { "type": "integer", "minimum": 0, "description": "Batch id; 0 means the union of every batch" },
         "label": { "type": "string" },
         "start": { "type": "string", "format": "date-time" },
         "end": { "type": "string", "format": "date-time" },

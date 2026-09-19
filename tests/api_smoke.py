@@ -183,11 +183,21 @@ def main() -> int:
         check("POST /reload -> 200", response.status_code == 200, response.text[:200])
         check("reload reports cleared caches", "cleared_caches" in response.json())
 
-        print("\n=== dashboard and documents ===")
+        print("\n=== the site ===")
         response = client.get("/")
-        check("GET / serves the dashboard", response.status_code == 200)
-        check("dashboard is the console, not a placeholder",
-              "NETRA" in response.text and "v-console" in response.text)
+        check("GET / serves the ingest page", response.status_code == 200, response.text[:200])
+        check("entry point is the ingest page",
+              "NETRA" in response.text and "read the traffic" in response.text)
+
+        response = client.get("/traffic.html")
+        check("GET /traffic.html -> 200", response.status_code == 200, response.text[:200])
+        check("traffic page is the whole-capture analysis",
+              "everything the tool read" in response.text)
+
+        for asset in ("assets/app.css", "assets/api.js", "assets/nav.js", "assets/traffic.js",
+                      "assets/index.js", "vendor/vis-network.min.js", "vendor/chart.umd.min.js"):
+            response = client.get(f"/{asset}")
+            check(f"asset served: {asset}", response.status_code == 200, response.text[:120])
 
         response = client.get("/documents/index.json")
         check("GET /documents/index.json -> 200", response.status_code == 200, response.text[:200])
@@ -197,13 +207,11 @@ def main() -> int:
             response = client.get(f"/documents/{doc['file']}")
             check(f"document served offline: {doc['file']}", response.status_code == 200)
 
-        for asset in ("app.css", "app.js", "vendor/vis-network.min.js", "vendor/chart.umd.min.js"):
-            response = client.get(f"/{asset}")
-            check(f"vendored asset served: {asset}", response.status_code == 200, response.text[:120])
-
-        console = client.get("/").text
-        check("no CDN references in the dashboard shell",
-              "cdn." not in console and "http://" not in console and "https://" not in console)
+        for page in ("index.html", "traffic.html", "assets/app.css", "assets/api.js"):
+            body = client.get(f"/{page}").text if page.endswith(".html") else ""
+            if body:
+                check(f"no CDN reference in {page}",
+                      "cdn." not in body and "http://" not in body and "https://" not in body)
 
     print(f"\n  {len(PASSED)} passed, {len(FAILED)} failed")
     if FAILED:

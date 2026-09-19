@@ -286,23 +286,80 @@ def _endpoint_entities(
     return endpoints, ip_to_id
 
 
+class _UnionWindow:
+    """Stands in for a `WindowRecord` when the payload covers EVERY batch.
+
+    The traffic page must be able to describe the complete dataset that was
+    ingested, not one slice of it. Rather than inventing a second payload shape
+    for that, the union is modelled as a window whose label says so -- so every
+    downstream consumer keeps working unchanged.
+    """
+
+    def __init__(self, windows: list[Any], n_tx: int, n_entities: int) -> None:
+        self.window_id = 0
+        self.label = f"all batches ({len(windows)})"
+        self.start_ts = windows[0].start_ts
+        self.end_ts = windows[-1].end_ts
+        self.path = "(the complete ingested dataset)"
+        self.n_tx = n_tx
+        self.n_entities = n_entities
+
+
+class _UnionReport:
+    """Stands in for a `LoadReport` when the payload covers every batch.
+
+    Summing the per-batch reports keeps every downstream consumer -- the fleet
+    block, the corpus coverage figures -- working unchanged, so union mode cannot
+    silently differ from single-batch mode in how the counts are derived.
+    """
+
+    def __init__(self, reports: list[Any]) -> None:
+        self.accepted = sum(int(report.accepted) for report in reports)
+        self.rejected = sum(int(report.rejected) for report in reports)
+        self.total = sum(int(report.total) for report in reports)
+        self.rejections: dict[str, int] = {}
+        self.notes: dict[str, int] = {}
+        for report in reports:
+            for reason, count in (report.rejections or {}).items():
+                self.rejections[reason] = self.rejections.get(reason, 0) + count
+
+
 def build_window_payload(
     store: MonitoringStore,
-    window_id: int,
+    window_id: int | None,
     models_dir: Path | str | None = None,
     top_n: int = 25,
     explain_floor: int = EXPLAIN_FLOOR,
 ) -> dict[str, Any]:
-    """Assemble the contract payload for one window."""
+    """Assemble the contract payload for one window, or for every batch.
+
+    `window_id=None` means the union of everything ingested -- what the traffic
+    analysis page needs. Per-entity risk in that mode is the PEAK the group ever
+    reached, because the question the whole-capture view answers is "what is in
+    this data", and a group that was critical in any batch is part of the answer.
+    """
     models_dir = Path(models_dir or ROOT / "models")
     started = datetime.now(timezone.utc)
 
     windows = store.windows()
-    record = next((item for item in windows if item.window_id == window_id), None)
-    if record is None:
-        raise ValueError(f"no such window: {window_id}")
+    if not windows:
+        raise ValueError("no windows recorded")
 
-    frame, load_report = load_any(record.path)
+    if window_id is None:
+        frames, reports = [], []
+        for item in windows:
+            loaded, window_report = load_any(item.path)
+            frames.append(loaded)
+            reports.append(window_report)
+        frame = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+        load_report: Any = _UnionReport(reports)
+        record: Any = _UnionWindow(windows, len(frame), 0)
+    else:
+        record = next((item for item in windows if item.window_id == window_id), None)
+        if record is None:
+            raise ValueError(f"no such window: {window_id}")
+        frame, load_report = load_any(record.path)
+
     mask = detect_coinjoin_like(frame)
     from correlation.engine import correlate
     corr = correlate(frame, coinjoin_mask=mask)
@@ -313,6 +370,7 @@ def build_window_payload(
     # which scores, alerts and history silently attach to nodes that do not exist.
     from monitoring.pipeline import remap_correlation
     corr = remap_correlation(corr, store.remap_derived(corr.address_to_entity))
+    record.n_entities = len(corr.entities)
     structural = all_structural_features(corr, frame, mask)
     graph = analyse_graph(corr, structural)
     table = build_feature_table(corr, frame, mask, graph=graph)
@@ -322,7 +380,22 @@ def build_window_payload(
     # agrees with the history the events were computed from. Re-predicting here
     # could disagree with the events after any change to the model, and the two
     # would then describe different worlds.
-    stored = store.scores(window_id).set_index("entity_key")
+    if window_id is None:
+        every = store.scores()
+        if every.empty:
+            stored = pd.DataFrame(columns=["risk", "anomaly", "band"]).set_index(
+                pd.Index([], name="entity_key")
+            )
+        else:
+            # Peak per entity across every batch, with the band recomputed from
+            # that peak so the two cannot contradict each other.
+            peak = every.groupby("entity_key").agg(
+                risk=("risk", "max"), anomaly=("anomaly", "max")
+            )
+            peak["band"] = peak["risk"].map(lambda value: band_for(int(value)))
+            stored = peak
+    else:
+        stored = store.scores(window_id).set_index("entity_key")
     roles = graph.roles.set_index("entity_id")["role"].to_dict() if not graph.roles.empty else {}
     metrics_frame = (
         graph.metrics.set_index("entity_id") if not graph.metrics.empty else pd.DataFrame()
@@ -365,7 +438,7 @@ def build_window_payload(
         band_counts[band_for(risk)] += 1
 
     flagged = {entity_id for risk, _, entity_id in ranked if risk >= explain_floor}
-    events = store.events(window_id)
+    events = store.events(window_id) if window_id is not None else store.events()
     changes_by_entity: dict[str, list[dict]] = {}
     for event in events.itertuples(index=False):
         detail = event.detail or {}
@@ -378,12 +451,13 @@ def build_window_payload(
         structural_row = structural_lookup.get(entity_id, {})
         role = roles.get(entity_id, "wallet")
         history = (
-            # Only windows up to THIS one. Including later windows would leak the
-            # future into a monitoring view -- the dashboard would draw a trend
-            # through data that had not arrived yet when this window ran.
+            # Only windows up to THIS one -- or every window when the payload
+            # covers all of them. Including later windows would leak the future
+            # into a monitoring view; excluding all of them in union mode would
+            # leave the trend blank on the page that needs it most.
             all_scores[
                 (all_scores["entity_key"] == entity_id)
-                & (all_scores["window_id"] <= window_id)
+                & (all_scores["window_id"] <= (window_id if window_id is not None else 10 ** 9))
             ]
             .sort_values("window_id")[["window_id", "risk"]]
         )
@@ -561,8 +635,10 @@ def build_window_payload(
     for index, event in enumerate(events.itertuples(index=False), start=1):
         detail = event.detail or {}
         event_rows.append({
-            "id": f"EV-{window_id}-{index:03d}",
-            "window": record.label,
+            "id": f"EV-{window_id or 0}-{index:03d}",
+            # The event's OWN batch when the payload spans several, so a merged
+            # feed does not label every event with the same window.
+            "window": getattr(event, "label", None) or record.label,
             "entity": event.entity_key,
             "type": event.type,
             "severity": event.severity,
@@ -614,7 +690,9 @@ def build_window_payload(
             "label": record.label,
             "start": record.start_ts,
             "end": record.end_ts,
-            "index": int(record.window_id),
+            # In union mode the position IS the whole sequence: the payload covers
+            # every batch, so reporting 1-of-1 would contradict its own label.
+            "index": len(windows) if window_id is None else int(record.window_id),
             "total": len(windows),
         },
         "fleet": {

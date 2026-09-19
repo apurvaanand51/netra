@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NETRA — traffic analysis</title>
+<link rel="stylesheet" href="vendor/fonts.css">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<header class="topbar" id="topbar"></header>
+
+<main class="page">
+  <div class="pageHead">
+    <h1>What is in this data?</h1>
+    <p>
+      Analysis of <b>everything the tool read</b> — not only the part it flagged. The suspicious groups are
+      reported as a share of this whole, because <em>"this group moved 62 BTC"</em> means nothing until you
+      know what an ordinary transaction in the same capture looks like.
+    </p>
+    <div class="spacer" style="height:10px"></div>
+    <div id="windowPicker" class="chips" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+  </div>
+
+  <!-- headline -->
+  <div class="grid g4" id="headline"></div>
+
+  <div class="grid g2" style="margin-top:16px;align-items:start">
+    <!-- value shape -->
+    <div class="card span2">
+      <h2>Where the value actually sits</h2>
+      <p class="sub">
+        Bitcoin values span nine orders of magnitude, so an average describes nobody. These are the sizes of
+        individual transactions, by how much they moved.
+      </p>
+      <div id="valueShape"></div>
+    </div>
+
+    <!-- geography -->
+    <div class="card">
+      <h2>Where the traffic comes from</h2>
+      <p class="sub">
+        Countries across <b>all</b> wallet groups. The flagged count inside each bar is a highlight, not the
+        picture — most traffic is ordinary.
+      </p>
+      <div id="geoAll"></div>
+    </div>
+
+    <!-- behaviour -->
+    <div class="card">
+      <h2>How the wallets behave</h2>
+      <p class="sub">
+        Every group counted exactly once, under the first behaviour it matches. A group can show several
+        patterns, so counting them separately would sum past 100% and mislead.
+      </p>
+      <div id="behaviour"></div>
+    </div>
+
+    <!-- coverage -->
+    <div class="card">
+      <h2>What was examined</h2>
+      <p class="sub">Stated so that "nothing found here" can be told apart from "not examined".</p>
+      <div id="coverage"></div>
+    </div>
+
+    <!-- top actors -->
+    <div class="card">
+      <h2>The largest actors in the capture</h2>
+      <p class="sub">
+        By value moved. Most of these are lawful services, and that is the point: this analysis covers
+        everyone, not a curated list of suspects.
+      </p>
+      <div id="topActors"></div>
+    </div>
+  </div>
+
+  <div class="caveat" id="trafficCaveat" style="margin-top:18px"></div>
+</main>
+
+<footer class="strip" id="strip"></footer>
+
+<script src="assets/api.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/traffic.js"></script>
+</body>
+</html>

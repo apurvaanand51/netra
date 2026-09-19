@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NETRA — ingest traffic</title>
+<link rel="stylesheet" href="vendor/fonts.css">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<header class="topbar" id="topbar"></header>
+
+<main class="page">
+  <div class="pageHead">
+    <h1>Find the wallets worth investigating — and show the evidence.</h1>
+    <p>
+      Bitcoin transactions are public but not named. NETRA reads a bulk dump of network traffic and
+      transaction records, works out <b>which wallets are controlled by the same person</b>, works out
+      <b>which IP addresses controlled them</b>, and then ranks the groups that behave like money
+      laundering — with the reason attached to each one.
+    </p>
+  </div>
+
+  <div class="grid g2" style="align-items:start">
+    <div>
+      <div class="card">
+        <h2>Step 1 — read the traffic</h2>
+        <p class="sub">Any of CSV, JSON, XML, or a SQLite database. Rows that cannot be parsed are
+          reported with a reason, never quietly dropped.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+          <button class="btn primary lg" id="demoBtn">Run on the built-in dataset</button>
+          <label class="btn lg" for="fileInput">Upload your own file</label>
+          <input type="file" id="fileInput" hidden accept=".csv,.txt,.json,.xml,.sqlite,.sqlite3,.db">
+        </div>
+        <div id="gate" hidden style="margin-top:14px">
+          <h2>What we made of that file</h2>
+          <div class="grid g4" id="gateGrid" style="margin-top:8px"></div>
+          <div id="gateReasons" class="muted small" style="margin-top:10px"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2>Step 2 — what happens to it</h2>
+        <ol style="margin:8px 0 0;padding-left:18px;color:var(--ink-2);font-size:12.5px;line-height:1.7">
+          <li><b style="color:var(--ink)">Group wallets into owners.</b> In Bitcoin you must sign for every
+            wallet you spend from, so wallets spent together belong to one person.</li>
+          <li><b style="color:var(--ink)">Join the two worlds.</b> We match the IP that broadcast a
+            transaction with the wallet it moved. That is how a wallet gets a country.</li>
+          <li><b style="color:var(--ink)">Describe the whole capture.</b> Volume, value distribution,
+            geography and behaviour composition across <em>everything</em> read.</li>
+          <li><b style="color:var(--ink)">Rank, and explain.</b> Two trained models score every group, and
+            each score comes with the factors that produced it and the money trail it follows.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2>What you will see, and where</h2>
+        <table class="data" style="margin-top:6px">
+          <tbody>
+            <tr><td><b>Traffic</b></td><td class="muted">What is in this data? The whole capture: volume,
+              value shape, geography, and how the wallets behave.</td></tr>
+            <tr><td><b>Investigate</b></td><td class="muted">Which groups need attention, why, and what
+              the money trail looks like.</td></tr>
+            <tr><td><b>Monitoring</b></td><td class="muted">What changed since the last batch — a group
+              that got riskier, went quiet, or merged with another.</td></tr>
+            <tr><td><b>Method</b></td><td class="muted">How well it works, against what, and what it must
+              not be used for.</td></tr>
+            <tr><td><b>Documents</b></td><td class="muted">How it was built, including the mistakes.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2>Current state</h2>
+        <div id="stateStats" class="empty">
+          <b>Checking…</b><span>Reading the local analysis store.</span>
+        </div>
+      </div>
+
+      <div class="caveat">
+        <b>Everything runs on this machine.</b> No internet connection is used or needed — that is a
+        requirement of the problem statement, not a preference. The dataset shipped with this build is
+        <b>synthetic, with planted illicit patterns</b>, which is what lets the accuracy figures be
+        measured rather than claimed.
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="strip" id="strip"></footer>
+
+<script src="assets/api.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/index.js"></script>
+</body>
+</html>
