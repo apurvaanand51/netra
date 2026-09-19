@@ -1,0 +1,16 @@
+# ---------------- Trained model artifacts ----------------
+# A model is only reproducible if we ship the exact bytes we measured, so the
+# trained artifacts DO travel with the repository. This matters because the
+# models are (re)trained on Google Colab -- see docs/COLAB_RETRAIN.md -- and the
+# demo machine, the Docker image and the judges must all be looking at the same
+# scorecard. Committing the artifact is what guarantees that.
+#
+# If you retrain, the artifact changes: that is a real change worth reviewing
+# and committing, not noise to be ignored.
+models/*
+!models/.gitkeep
+!models/risk.joblib             # RandomForest risk scorer (model #2)
+!models/anomaly.joblib          # IsolationForest anomaly detector (model #1)
+!models/feature_columns.json    # the exact feature order the models expect
+!models/metrics.json            # the measured scorecard, quoted in every report
+!models/ENVIRONMENT.txt         # versions that produced the artifacts (compat check)

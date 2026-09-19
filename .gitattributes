@@ -1,0 +1,83 @@
+# NETRA -- Git attributes
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# The team practises on Windows and ships on Linux. Windows editors save text
+# with CRLF line endings. A shell script with CRLF fails on Linux in a way that
+# is invisible until the worst possible moment.
+#
+# Concretely: if `run.sh` reaches the Linux demo box with CRLF, then
+#
+#     ./run.sh
+#
+# fails with:
+#
+#     bash: ./run.sh: /usr/bin/env: bad interpreter: No such file or directory
+#
+# because the kernel reads the interpreter path as "/usr/bin/env\r" -- the
+# carriage return is part of the filename it looks for.
+#
+# That is the classic demo-day-only failure: it works on every laptop in the
+# team and breaks only on the machine the judges are watching. So we pin the
+# rule here, once, instead of relying on everyone's local Git configuration.
+#
+# `.gitattributes` is committed, so it applies to every clone automatically.
+# A local `core.autocrlf` setting is NOT -- which is exactly the difference.
+
+# ---- Default -------------------------------------------------------------
+# Normalise text files to LF inside the repository, and let each platform
+# check them out in whatever form it prefers.
+* text=auto
+
+# ---- Never-normalise: lines that MUST be LF everywhere -------------------
+# These run under bash on Linux (the demo/Docker target), so LF is mandatory.
+*.sh            text eol=lf
+*.bash          text eol=lf
+
+# ---- Never-normalise: lines that MUST be CRLF everywhere -----------------
+# Windows batch files genuinely require CRLF; CMD mis-parses LF-only files.
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+
+# ---- Normalised to LF (we do not want platform differences at all) -------
+*.py            text eol=lf
+*.js            text eol=lf
+*.json          text eol=lf
+*.ipynb         text eol=lf
+*.md            text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.toml          text eol=lf
+*.cfg           text eol=lf
+*.txt           text eol=lf
+*.csv           text eol=lf
+*.css           text eol=lf
+Dockerfile      text eol=lf
+Makefile        text eol=lf
+.dockerignore   text eol=lf
+.gitignore      text eol=lf
+
+# ---- Binaries: never diff, never convert --------------------------------
+# A trained model, a font or an image that Git decides to "normalise" becomes
+# a corrupt file, not a warning. Marking them binary makes Git treat them as
+# opaque bytes: no line-ending conversion, no text diff.
+*.joblib        binary
+*.pkl           binary
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.pdf           binary
+*.xlsx          binary
+*.mp4           binary
+*.woff          binary
+*.woff2         binary
+*.ttf           binary
+*.otf           binary
+
+# ---- Generated / vendored content ---------------------------------------
+# Mark the vendored offline libraries and font binaries as binary so Git does
+# not try to diff a 300 KB minified bundle line-by-line in every pull request.
+frontend/vendor/*.min.js            binary
+frontend/vendor/fonts/*             binary
