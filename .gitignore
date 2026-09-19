@@ -33,6 +33,8 @@ models/*
 !models/feature_columns.json    # the exact feature order the models expect
 !models/metrics.json            # the measured scorecard, quoted in every report
 !models/ENVIRONMENT.txt         # versions that produced the artifacts (compat check)
+!models/reference_distribution.json  # the training distribution the drift check compares against
+                                # -- without it the console can only say "not measured"
 
 # ---------------- Uploads / runtime output ----------------
 uploads/
@@ -40,7 +42,11 @@ out/
 *.log
 
 # ---------------- Offline wheel cache (large, rebuildable) ----------------
-wheels/
+# The DIRECTORY is tracked (via .gitkeep) but its contents are not. A fresh clone
+# then still has a `wheels/` for the Dockerfile to COPY, so `docker build` works
+# on a machine that was never connected to anything.
+wheels/*
+!wheels/.gitkeep
 
 # ---------------- OS / editor ----------------
 .DS_Store

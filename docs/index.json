@@ -14,6 +14,11 @@
       "file": "REIDEATION.md",
       "title": "The review that reshaped it",
       "description": "The doubts we hit, the false alarm we retracted, and why the project was rebuilt."
+    },
+    {
+      "file": "COLAB_RETRAIN.md",
+      "title": "Retraining on Colab",
+      "description": "Why the retrain happens in the cloud, the numpy trap that would silently break the demo, and how the artifacts travel back."
     }
   ]
 }

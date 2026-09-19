@@ -1,0 +1,36 @@
+# NETRA -- one command to run the whole tool.
+#
+#   docker compose up
+#
+# Then open http://localhost:8000. The image bakes in the dataset, the trained
+# models and the recorded history, so this works on a machine with no network
+# access and no setup step -- which is the deployment the problem statement asks
+# for, not a simplification of it.
+services:
+  netra:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: netra:monitoring-2
+    container_name: netra
+    ports:
+      - "8000:8000"
+    environment:
+      # Keeps the container's behaviour identical to the host's: one process,
+      # no telemetry, no outbound calls. Nothing here reaches the network.
+      PYTHONUNBUFFERED: "1"
+    # The analysis is CPU-bound (scoring, explanations, graph algorithms) and
+    # single-process by design, so it gets cores rather than replicas.
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+    restart: unless-stopped
+    # Mounting `out/` is optional and deliberately NOT done by default: the image
+    # is self-contained, and a bind mount would let a host directory replace the
+    # baked history with an empty one -- the tool would still start, and would
+    # then report that nothing had ever been analysed.
+    #
+    # Uncomment to persist new analysis across container rebuilds:
+    # volumes:
+    #   - ./out:/app/out

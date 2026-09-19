@@ -1,0 +1,121 @@
+name: CI
+
+# Every push and pull request: install the pinned environment, verify the frozen
+# contract, run the whole pipeline end to end, exercise every HTTP endpoint, and
+# check that the frontend can still render with no network at all.
+#
+# WHY THIS MATTERS FOR A TEAM
+# ---------------------------
+# The contract is only as good as its enforcement. This workflow is what makes
+# "the contract is sacred" a fact rather than an aspiration: if a change makes the
+# payload drift from the agreed shape, the build goes red immediately rather than
+# at 3am on demo day.
+#
+# It mirrors what a developer runs locally (`python tasks.py smoke`), so a green
+# build here means the same thing it means on a laptop.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          # Safe to cache because requirements.txt is pinned: if a pin changes,
+          # the cache key changes with it.
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Every $ref in the contract resolves
+        run: |
+          python - <<'PY'
+          import json, re
+          text = open("schemas/results.schema.json", encoding="utf-8").read()
+          schema = json.loads(text)
+          missing = sorted(set(re.findall(r"#/\$defs/([A-Za-z]+)", text)) - set(schema["$defs"]))
+          assert not missing, f"the contract references definitions that do not exist: {missing}"
+          print(f"contract OK: {len(schema['properties'])} properties, {len(schema['$defs'])} definitions")
+          PY
+
+      - name: Validate the development fixture
+        run: python -m tests.validate_contract --fixture
+
+      - name: Generate a dataset
+        run: python tasks.py gen --tx 4000 --clusters 200 --out data
+
+      - name: Train and measure the models
+        run: python tasks.py train --data data --models models
+
+      - name: Run the windowed pipeline
+        run: python tasks.py replay --dataset data/transactions.csv --data data
+
+      - name: Build a payload and validate it against the contract
+        run: python tasks.py payload --window 2 --out out/ci_payload.json
+
+      - name: Distribution drift report
+        run: python tasks.py drift
+
+      - name: Test suite
+        run: python tasks.py test
+
+      - name: API smoke test (every endpoint)
+        run: python tests/api_smoke.py
+
+      - name: Frontend scripts parse
+        # A syntax error in one asset blanks a whole page while the server still
+        # returns 200, so route-level tests cannot see it. `node --check` can.
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: |
+          for file in frontend/assets/*.js; do
+            node --check "$file" || { echo "::error file=$file::does not parse"; exit 1; }
+          done
+          echo "all frontend assets parse"
+
+      - name: No page may reference an external resource
+        # An air-gapped browser fails a CDN load SILENTLY and renders a blank
+        # dashboard. A paragraph in the README does not prevent that; this does.
+        run: |
+          if grep -rn "https\?://" frontend/*.html frontend/assets/*.css; then
+            echo "::error::the dashboard references an external resource"
+            exit 1
+          fi
+          echo "no external references in any page or stylesheet"
+
+      - name: Vendored offline assets are present
+        run: |
+          for asset in frontend/vendor/vis-network.min.js frontend/vendor/chart.umd.min.js frontend/vendor/fonts.css; do
+            test -s "$asset" || { echo "::error::missing vendored asset: $asset"; exit 1; }
+          done
+          test "$(ls frontend/vendor/fonts | wc -l)" -ge 40 || { echo "::error::font files missing"; exit 1; }
+          echo "vendored assets complete"
+
+      - name: Upload the scorecard and the payload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: netra-scorecard
+          path: |
+            models/metrics.json
+            models/ENVIRONMENT.txt
+            out/ci_payload.json
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,0 +1,128 @@
+name: Release
+
+# On a version tag: build the artifact an air-gapped agency can actually receive.
+#
+# WHAT "CD" MEANS FOR THIS PROJECT
+# --------------------------------
+# There is no server to deploy to. The target is an isolated Linux host that
+# cannot pull anything from the internet, so the useful deliverable is a
+# SELF-CONTAINED BUNDLE that can be carried in on physical media:
+#
+#   netra-<version>.tar.gz
+#   ├─ code, schemas, tests
+#   ├─ wheels/            offline install cache
+#   ├─ data/  models/     the dataset and the trained artifacts
+#   ├─ frontend/vendor/   offline JavaScript and fonts
+#   ├─ COMMIT             the exact commit that produced it
+#   └─ run.sh             works with no network
+#
+# plus a `docker save` image, because the receiving host cannot pull from a
+# registry either. Framing it this way is a stronger answer than pretending to
+# deploy to a cluster -- it shows the constraint was understood.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Regenerate and retrain from the seed
+        # The bundle's numbers must come from THIS commit, not from artifacts
+        # committed earlier. The seed makes that reproducible.
+        run: |
+          python tasks.py gen
+          python tasks.py train
+          python tasks.py replay
+
+      - name: Verify before packaging
+        run: |
+          python -m tests.validate_contract --fixture
+          python tasks.py payload --window 2 --out out/release_payload.json
+          python tasks.py test
+          python tests/api_smoke.py
+
+      - name: Download every wheel for offline installation
+        run: pip download -r requirements.txt -d wheels/
+
+      - name: Assemble the bundle
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME:-manual}"
+          NAME="netra-${VERSION}"
+          mkdir -p "dist/${NAME}"
+          for path in backend correlation frontend generator ingestion ml monitoring \
+                      schemas tests notebooks docs; do
+            [ -d "$path" ] && cp -r "$path" "dist/${NAME}/"
+          done
+          for file in requirements.txt tasks.py Makefile run.sh run.bat README.md \
+                      LICENSE Dockerfile docker-compose.yml .gitignore .gitattributes; do
+            [ -f "$file" ] && cp "$file" "dist/${NAME}/"
+          done
+          for folder in data models wheels out; do
+            [ -d "$folder" ] && cp -r "$folder" "dist/${NAME}/"
+          done
+          # Provenance: the shipped artifact and the reported metrics must be
+          # provably from the same code.
+          echo "${GITHUB_SHA}" > "dist/${NAME}/COMMIT"
+          git log -1 --format='%H %ad %s' >> "dist/${NAME}/COMMIT"
+          tar -czf "dist/${NAME}.tar.gz" -C dist "${NAME}"
+          ls -lh "dist/${NAME}.tar.gz"
+
+      - name: Build and save the image
+        run: |
+          docker build -t netra:${GITHUB_REF_NAME:-manual} .
+          docker save netra:${GITHUB_REF_NAME:-manual} | gzip > "dist/netra-${GITHUB_REF_NAME:-manual}-image.tar.gz"
+          ls -lh dist/*.tar.gz
+
+      - name: Attest what is inside
+        run: |
+          {
+            echo "NETRA release ${GITHUB_REF_NAME:-manual}"
+            echo ""
+            echo "commit"
+            cat COMMIT 2>/dev/null || echo "${GITHUB_SHA}"
+            echo ""
+            echo "scorecard (models/metrics.json)"
+            cat models/metrics.json
+          } > dist/RELEASE_NOTES.txt
+          head -40 dist/RELEASE_NOTES.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: netra-release-${{ github.ref_name }}
+          path: |
+            dist/*.tar.gz
+            dist/RELEASE_NOTES.txt
+          retention-days: 90
+
+      - name: Attach to the GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/RELEASE_NOTES.txt
+          body: |
+            Self-contained offline bundle. Extract, then `./run.sh` — no network
+            access is required for the install or the run.
+
+            `RELEASE_NOTES.txt` carries the commit and the full scorecard, so the
+            shipped artifact and the reported metrics are provably from the same
+            source.

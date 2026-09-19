@@ -1,0 +1,31 @@
+# What must NOT enter the image build context.
+#
+# Kept small on purpose: a bloated context makes every build slow, and anything
+# generated in here would be COPYied over the versions the Dockerfile bakes in.
+
+# ---- generated on the build machine, regenerated inside the image ----
+data/*
+!data/.gitkeep
+models/*
+!models/.gitkeep
+out/
+uploads/
+
+# ---- caches and environments ----
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# ---- repository plumbing and documents ----
+.git/
+.gitignore
+.github/
+docs/
+*.md
+
+# ---- heavyweight and irrelevant to a Linux image ----
+*.mp4
+*.xlsx
+*.zip
