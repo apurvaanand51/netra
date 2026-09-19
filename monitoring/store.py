@@ -329,6 +329,38 @@ class MonitoringStore:
             key_map=key_map,
         )
 
+    def remap_derived(self, address_to_entity: dict[str, str]) -> dict[str, str]:
+        """Map freshly-DERIVED entity keys onto canonical REGISTERED keys.
+
+        A producer that re-derives entities from a window's file gets derived
+        keys (hashes of the anchor address as this window saw it), while the
+        store holds pinned, post-merge keys. The two agree only until an entity
+        is relabelled or merged -- after which scores, alerts and history attach
+        to node ids that do not exist, silently. That is exactly what happened
+        to the payload builder, so the translation is explicit here rather than
+        assumed anywhere.
+
+        Returns `derived -> canonical` for every derived key with at least one
+        registered address. Derived keys with no registered address are new
+        entities and are simply absent from the map.
+        """
+        pinned = self.pinned_keys()
+        members: dict[str, list[str]] = {}
+        for address, derived in address_to_entity.items():
+            members.setdefault(derived, []).append(address)
+
+        mapping: dict[str, str] = {}
+        for derived, addresses in members.items():
+            known = sorted({
+                self.canonical(pinned[address])
+                for address in addresses if address in pinned
+            })
+            if known:
+                # Deterministic choice. Merges are already resolved through
+                # `canonical()`, so this is a single element in practice.
+                mapping[derived] = known[0]
+        return mapping
+
     # ---- entity state ------------------------------------------------------
     def record_entities(self, window_id: int, frame: pd.DataFrame) -> None:
         """Upsert the durable per-entity row.
@@ -369,6 +401,19 @@ class MonitoringStore:
             for row in self._connection.execute("SELECT DISTINCT entity_key FROM address_entity")
         }
         return {self.canonical(key) for key in keys}
+
+    def latest_window_for(self, entity_key: str) -> int | None:
+        """Most recent window this entity was scored in, or None.
+
+        A lead exists across windows, so the dossier must find it wherever it
+        last appeared rather than assuming the newest window -- otherwise asking
+        for a week-old lead 404s at the moment an analyst needs it.
+        """
+        row = self._connection.execute(
+            "SELECT MAX(window_id) AS latest FROM scores WHERE entity_key = ?",
+            (entity_key,),
+        ).fetchone()
+        return int(row["latest"]) if row and row["latest"] is not None else None
 
     def entities_before(self, window_id: int) -> set[str]:
         """Every entity seen in any window strictly before this one."""

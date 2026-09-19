@@ -305,6 +305,13 @@ def build_window_payload(
     mask = detect_coinjoin_like(frame)
     from correlation.engine import correlate
     corr = correlate(frame, coinjoin_mask=mask)
+
+    # Re-key onto the registry's PINNED identity before anything is indexed by
+    # entity. Correlating the file directly yields DERIVED keys, which coincide
+    # with the store's keys only until an entity is relabelled or merged -- after
+    # which scores, alerts and history silently attach to nodes that do not exist.
+    from monitoring.pipeline import remap_correlation
+    corr = remap_correlation(corr, store.remap_derived(corr.address_to_entity))
     structural = all_structural_features(corr, frame, mask)
     graph = analyse_graph(corr, structural)
     table = build_feature_table(corr, frame, mask, graph=graph)
@@ -536,11 +543,15 @@ def build_window_payload(
         for row in graph.communities.itertuples(index=False)
     ] if not graph.communities.empty else []
 
-    # ---- fund traces for the top leads ----
+    # ---- fund traces for the ranked leads ----
+    # Every lead, not just the top few. A trace costs roughly one graph walk
+    # (bounded by max_hops), so the saving from limiting it was negligible while
+    # the cost was real: a lead further down the rail opened a dossier with no
+    # fund trail in it, which is exactly what the dossier is for.
     sinks = sink_entities(structural)
     traces = [
         trace.as_dict()
-        for trace in trace_funds(flows, lead_ids[:5], sinks, max_hops=4)
+        for trace in trace_funds(flows, lead_ids, sinks, max_hops=4)
         if trace.sinks
     ]
 
