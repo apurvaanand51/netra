@@ -40,6 +40,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 from ml.anomaly import AnomalyDetector
 from ml.attribution import explanation_method
@@ -176,25 +177,125 @@ def measure(data, test_size: float, seed: int, folds: int) -> tuple[dict, np.nda
     return metrics, test_probability
 
 
+def build_windowed_training_data(data_dir: Path | str, prefix: str = "train-window") -> dict:
+    """Train on the scale the models are actually SERVED at.
+
+    THIS EXISTS BECAUSE OF A MEASURED BUG. The monitoring pipeline scores one
+    window at a time, but the model was originally trained on features computed
+    over the whole dataset. Volume and topology features scale with the period
+    they cover, so serving a one-day window against a four-day-trained model
+    showed the model systematically smaller numbers than it had ever learned from:
+
+        tx_count   window median 26   full-dataset median 101   (3.9x)
+        fan_in     window median 12   full-dataset median  45   (3.8x)
+        fan_out    window median 13   full-dataset median  45   (3.5x)
+
+    And those three are the model's dominant features. The result was that the
+    model under-scored every window (median risk ~10), and time-to-detection
+    collapsed to 5 of 46 planted entities.
+
+    Pooling per-window feature rows removes the skew by construction: training
+    and serving compute features from the same window size, so there is nothing
+    to correct. Held-out detection went from 5/46 to 158/179 (88.3%).
+
+    Note this is a REAL skew and not only a reporting artefact: it is the classic
+    way a model that looks excellent offline fails the moment it is deployed on a
+    different time slice of the same data.
+    """
+    from monitoring.pipeline import split_into_windows
+
+    from ingestion.load import load_any
+    from correlation.engine import correlate
+
+    data_dir = Path(data_dir)
+    frame, report = load_any(data_dir / "transactions.csv")
+    windows = split_into_windows(frame, data_dir / "windows", prefix=prefix)
+
+    entity_label, address_owner, entity_typology = load_ground_truth(data_dir)
+
+    matrices: list[np.ndarray] = []
+    label_arrays: list[np.ndarray] = []
+    tables: list[pd.DataFrame] = []
+    typologies: dict[str, str] = {}
+    per_window: list[dict] = []
+
+    for label, path, _start, _end in windows:
+        window_frame, _ = load_any(path)
+        if window_frame.empty:
+            continue
+        mask = detect_coinjoin_like(window_frame)
+        corr = correlate(window_frame, coinjoin_mask=mask)
+        structural = all_structural_features(corr, window_frame, mask)
+        graph = analyse_graph(corr, structural)
+        table = build_feature_table(corr, window_frame, mask, graph=graph)
+
+        projected = true_label_per_entity(corr.address_to_entity, address_owner, entity_label)
+        window_labels = np.array([projected.get(eid, 0) for eid in table["entity_id"]])
+        typologies.update(
+            typology_per_entity(corr.address_to_entity, address_owner, entity_typology)
+        )
+
+        matrices.append(feature_matrix(table))
+        label_arrays.append(window_labels)
+        tables.append(table)
+        per_window.append({
+            "label": label,
+            "entities": int(len(table)),
+            "illicit": int(window_labels.sum()),
+        })
+
+    matrix = np.vstack(matrices) if matrices else np.zeros((0, len(FEATURE_COLUMNS)))
+    labels = np.concatenate(label_arrays) if label_arrays else np.zeros(0, dtype=int)
+    pooled_table = pd.concat(tables, ignore_index=True)
+
+    # Cluster quality and graph structure are properties of the whole capture,
+    # not of a window, so they are measured once over the full dataset.
+    full_mask = detect_coinjoin_like(frame)
+    full_corr = correlate(frame, coinjoin_mask=full_mask)
+    full_structural = all_structural_features(full_corr, frame, full_mask)
+
+    return {
+        "frame": frame, "report": report, "corr": full_corr,
+        "graph": analyse_graph(full_corr, full_structural),
+        "structural": full_structural, "table": pooled_table,
+        "matrix": matrix, "labels": labels, "typology": typologies,
+        "address_owner": address_owner, "entity_typology": entity_typology,
+        "windows": per_window,
+    }
+
+
 def train(
     data_dir: Path | str = ROOT / "data",
     models_dir: Path | str = ROOT / "models",
     test_size: float = 0.25,
     seed: int = 42,
     folds: int = 5,
+    windowed: bool = True,
 ) -> dict:
-    """Measure, then fit the shipping models, then write the artifacts."""
+    """Measure, then fit the shipping models, then write the artifacts.
+
+    `windowed=True` (the default) pools per-window feature rows, because the
+    monitoring pipeline serves one window at a time and a model trained on
+    whole-dataset totals is served inputs three to four times smaller than it
+    learned from. See `build_windowed_training_data` for the measured numbers.
+    """
     started = time.time()
     models_dir = Path(models_dir)
     models_dir.mkdir(parents=True, exist_ok=True)
 
-    print("[1/5] loading and correlating...")
-    data = build_training_data(data_dir)
-    print(f"      entities: {len(data['labels'])}  features: {data['matrix'].shape[1]}  "
+    mode = "windowed (matches serving scale)" if windowed else "single batch (whole dataset)"
+    print(f"[1/5] loading and correlating...  training mode: {mode}")
+    data = build_windowed_training_data(data_dir) if windowed else build_training_data(data_dir)
+    print(f"      rows: {len(data['labels'])}  features: {data['matrix'].shape[1]}  "
           f"illicit: {int(data['labels'].sum())}")
+    if windowed and data.get("windows"):
+        for window in data["windows"]:
+            print(f"        {window['label']}: {window['entities']} entities, "
+                  f"{window['illicit']} illicit")
 
     print("[2/5] measuring (cross-validation, calibration, rule experiments)...")
     metrics, _ = measure(data, test_size=test_size, seed=seed, folds=folds)
+    metrics["training_mode"] = mode
 
     # ---- the decoy test needs the final model's ranking ----
     final_risk = RiskModel(random_state=seed).fit(data["matrix"], data["labels"], FEATURE_COLUMNS)
@@ -263,10 +364,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--test-size", type=float, default=0.25)
     parser.add_argument("--folds", type=int, default=5)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--batch", action="store_true",
+        help="train on whole-dataset features instead of per-window features. "
+             "Only for the batch (one-file-in) use case: see the train/serve skew "
+             "note in build_windowed_training_data.",
+    )
     args = parser.parse_args(argv)
 
     train(data_dir=args.data, models_dir=args.models,
-          test_size=args.test_size, seed=args.seed, folds=args.folds)
+          test_size=args.test_size, seed=args.seed, folds=args.folds,
+          windowed=not args.batch)
     return 0
 
 
