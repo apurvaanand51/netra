@@ -54,6 +54,7 @@ import numpy as np
 import pandas as pd
 
 from correlation.engine import CorrelationResult
+from ml.graph import GraphIntelligence, analyse_graph
 from ml.patterns import all_structural_features
 
 # The exact feature vector the models are trained on. Frozen alongside the
@@ -87,6 +88,14 @@ FEATURE_COLUMNS = [
     "exchange_score",
     "round_amount_ratio",
     "mean_payment_btc",
+    # --- graph position: WHERE does it sit in the operation? ---
+    # These come from ml/graph.py. They are the only features that describe an
+    # entity's role in the wider network rather than its own behaviour, and
+    # betweenness in particular cannot be computed from any single entity.
+    "pagerank",
+    "betweenness",
+    "community_size",
+    "net_flow_ratio",
 ]
 
 # Makes a MAD-based score directly comparable to a standard deviation under a
@@ -193,10 +202,17 @@ def build_feature_table(
     corr: CorrelationResult,
     df: pd.DataFrame,
     coinjoin_mask: np.ndarray,
+    graph: "GraphIntelligence | None" = None,
 ) -> pd.DataFrame:
     """Build the per-entity feature matrix.
 
     Returns a DataFrame with `entity_id` plus every column in FEATURE_COLUMNS.
+
+    `graph` may be passed in when the caller has already run the graph layer
+    (for communities, roles or fund traces). Graph algorithms are the most
+    expensive part of the pipeline, so paying for them twice would be wasteful --
+    but leaving the parameter out entirely would mean every caller has to know
+    the correct order to run things in.
     """
     entities = corr.entities
     if entities.empty:
@@ -223,6 +239,11 @@ def build_feature_table(
     # --- structural detector outputs, merged in ---
     structural = all_structural_features(corr, df, coinjoin_mask)
     table = base.merge(structural, on="entity_id", how="left")
+
+    # --- graph position (PageRank, betweenness, community, value direction) ---
+    if graph is None:
+        graph = analyse_graph(corr, structural)
+    table = table.merge(graph.metrics, on="entity_id", how="left")
 
     for column in FEATURE_COLUMNS:
         if column not in table.columns:
