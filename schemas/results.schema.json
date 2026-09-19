@@ -378,7 +378,34 @@
         "merged_entities": { "type": "integer", "minimum": 0 },
         "rows_rejected": { "type": "integer", "minimum": 0, "description": "Rejected by the data-quality gate. Silent data loss is indefensible, so the count is surfaced rather than swallowed." },
         "events": { "type": "integer", "minimum": 0 },
-        "open_alerts": { "type": "integer", "minimum": 0 }
+        "open_alerts": { "type": "integer", "minimum": 0 },
+        "drift": {
+          "type": "object",
+          "description": "Whether this batch resembles the data the model was trained on. Present so the tool can say 'trust these scores less' instead of returning confident numbers about a world it was never trained for. A feature counts as drifted only when PSI and KS agree, because PSI alone can miss a shift inside one bin and KS alone flags trivial differences as significant on large samples.",
+          "additionalProperties": false,
+          "properties": {
+            "verdict": { "type": "string", "description": "One sentence an operator can act on" },
+            "drifted_count": { "type": "integer", "minimum": 0 },
+            "drifted_features": { "type": "array", "items": { "type": "string" } },
+            "max_psi": { "type": ["number", "null"], "description": "Population Stability Index of the worst-shifted feature. Under 0.10 is stable; over 0.25 is a different world." },
+            "worst_feature": { "type": ["string", "null"] },
+            "worst_features": {
+              "type": "array",
+              "description": "The three most-shifted features, so a reader can see WHICH fact moved rather than only that something did",
+              "items": {
+                "type": "object",
+                "required": ["feature", "psi"],
+                "additionalProperties": false,
+                "properties": {
+                  "feature": { "type": "string" },
+                  "psi": { "type": "number" },
+                  "ks_pvalue": { "type": ["number", "null"] },
+                  "drifted": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        }
       }
     },
 
@@ -515,7 +542,7 @@
               "value_btc": { "type": "number", "minimum": 0 },
               "tx_count": { "type": "integer", "minimum": 0 },
               "flagged": { "type": "boolean" },
-              "share_of_value": { "type": "number", "minimum": 0, "maximum": 1 }
+              "share_of_value": { "type": "number", "minimum": 0, "maximum": 1, "description": "Share of all value ATTRIBUTED TO WALLET GROUPS, which is the same quantity this actor's own value_btc measures. It is deliberately not a share of the capture total: an entity's value counts sent outputs and received inputs, so the two denominators differ and mixing them produced a share above 100%." }
             }
           }
         },

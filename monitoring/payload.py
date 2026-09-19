@@ -423,15 +423,29 @@ def build_window_payload(
     lead_ids = [entity_id for _, _, entity_id in ranked[:top_n]]
     explanation_rows = {}
     if risk_model is not None and lead_ids:
-        # Positional lookup, not index labels: `table` comes out of a merge, so
-        # its index is not guaranteed to be 0..n-1 and indexing a numpy matrix
-        # by label would silently explain the wrong entity.
-        entity_ids_array = table["entity_id"].to_numpy()
-        positions = [int(np.flatnonzero(entity_ids_array == eid)[0]) for eid in lead_ids]
-        for entity_id, explanation in zip(
-            lead_ids, explain_forest(risk_model, matrix[positions], FEATURE_COLUMNS)
-        ):
-            explanation_rows[entity_id] = explanation
+        if window_id is None:
+            # Whole-capture view: explain each peak with the feature vector from
+            # the batch where it peaked, read from the store. Using the union's
+            # own features would reconcile the bars to a different score than the
+            # one displayed -- measured at 26 vs a shown 100 before this.
+            peak_features = store.features_at_peak()
+            available = [eid for eid in lead_ids if eid in peak_features.index]
+            if available:
+                vector = peak_features.loc[available, FEATURE_COLUMNS].to_numpy(dtype=float)
+                for entity_id, explanation in zip(
+                    available, explain_forest(risk_model, vector, FEATURE_COLUMNS)
+                ):
+                    explanation_rows[entity_id] = explanation
+        else:
+            # Positional lookup, not index labels: `table` comes out of a merge,
+            # so its index is not guaranteed to be 0..n-1 and indexing a numpy
+            # matrix by label would silently explain the wrong entity.
+            entity_ids_array = table["entity_id"].to_numpy()
+            positions = [int(np.flatnonzero(entity_ids_array == eid)[0]) for eid in lead_ids]
+            for entity_id, explanation in zip(
+                lead_ids, explain_forest(risk_model, matrix[positions], FEATURE_COLUMNS)
+            ):
+                explanation_rows[entity_id] = explanation
 
     band_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
     for risk, _, _ in ranked:
@@ -671,6 +685,7 @@ def build_window_payload(
 
     corpus = corpus_statistics(frame, corr, scored, load_report)
     behaviour = behaviour_composition(corr, structural, scored)
+    drift = _drift_for(matrix, models_dir)
 
     payload: dict[str, Any] = {
         "meta": {
@@ -703,6 +718,10 @@ def build_window_payload(
             "rows_rejected": int(load_report.rejected),
             "events": int(len(events)),
             "open_alerts": int(len(alert_rows)),
+            # Whether this batch resembles the training world. It belongs in the
+            # fleet block because it is a statement about the FEED, not about any
+            # one wallet in it.
+            "drift": drift,
         },
         "entities": entities,
         "edges": edges,
@@ -720,6 +739,44 @@ def build_window_payload(
         "behaviour": behaviour,
     }
     return payload
+
+
+def _drift_for(matrix: np.ndarray, models_dir: Path) -> dict[str, Any]:
+    """Does this batch resemble the data the model was trained on?
+
+    A model is a statement about its training data. A batch from a different
+    world still produces confident scores, and nothing else in the pipeline would
+    notice -- so the tool has to be able to say "trust these less". Only the worst
+    few features are carried: the full per-feature table is a training-time report,
+    not something the dashboard renders, and shipping 28 rows in every payload
+    would bloat the contract for no reader.
+    """
+    from ml.drift import compare, load_reference
+
+    reference = load_reference(Path(models_dir) / "reference_distribution.json")
+    if reference is None:
+        return {"verdict": "not measured — the model artifact carries no training distribution"}
+    if matrix.size == 0:
+        return {"verdict": "not measured — no features in this batch"}
+
+    report = compare(reference, matrix, FEATURE_COLUMNS)
+    worst = sorted(report["features"], key=lambda row: -row["psi"])[:3]
+    return {
+        "verdict": report["verdict"],
+        "drifted_count": report["drifted_count"],
+        "drifted_features": report["drifted_features"],
+        "max_psi": report["max_psi"],
+        "worst_feature": report["worst_feature"],
+        "worst_features": [
+            {
+                "feature": row["feature"],
+                "psi": row["psi"],
+                "ks_pvalue": row["ks_pvalue"],
+                "drifted": row["drifted"],
+            }
+            for row in worst
+        ],
+    }
 
 
 def _load_metrics(models_dir: Path) -> dict[str, Any]:

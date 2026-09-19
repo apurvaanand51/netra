@@ -326,6 +326,16 @@ def train(
     print("[3/5] writing artifacts...")
     final_risk.save(models_dir / "risk.joblib")
     AnomalyDetector().fit(data["matrix"]).save(models_dir / "anomaly.joblib")
+
+    # The training distribution, so any later batch can be checked against the
+    # world this model was actually trained on. It travels inside the model
+    # directory for the same reason the FeatureBaseline does: a drift check whose
+    # reference lives somewhere else is a drift check that eventually gets skipped.
+    from ml.drift import fit_reference, save_reference
+    save_reference(
+        fit_reference(data["matrix"], FEATURE_COLUMNS),
+        models_dir / "reference_distribution.json",
+    )
     (models_dir / "feature_columns.json").write_text(
         json.dumps(FEATURE_COLUMNS, indent=2), encoding="utf-8",
     )

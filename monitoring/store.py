@@ -476,6 +476,36 @@ class MonitoringStore:
         )
         return features
 
+    def features_at_peak(self) -> pd.DataFrame:
+        """Per entity, the feature vector from the batch in which it scored highest.
+
+        Needed to explain a whole-capture view. In that view an entity's risk is
+        the PEAK it reached in some batch, so explaining it with whole-capture
+        features produces bars that reconcile to a different number than the one
+        on screen -- an explanation that does not explain the figure beside it,
+        which is worse than showing no bars at all.
+
+        Read from the stored vectors rather than recomputed, so the explanation
+        describes exactly the scoring run that produced the peak.
+        """
+        statement = """
+            SELECT s.entity_key AS entity_key, s.features AS features
+            FROM scores s
+            JOIN (SELECT entity_key, MAX(risk) AS peak FROM scores GROUP BY entity_key) p
+              ON s.entity_key = p.entity_key AND s.risk = p.peak
+            GROUP BY s.entity_key
+        """
+        rows = self._connection.execute(statement).fetchall()
+        if not rows:
+            return pd.DataFrame()
+
+        records = []
+        for row in rows:
+            vector = json.loads(row["features"])
+            vector["entity_key"] = row["entity_key"]
+            records.append(vector)
+        return pd.DataFrame(records).set_index("entity_key")
+
     # ---- events and alerts ------------------------------------------------
     def record_events(self, events: Iterable[dict[str, Any]]) -> int:
         rows = [

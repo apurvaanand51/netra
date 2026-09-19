@@ -140,6 +140,15 @@ def corpus_statistics(
     kind_by_entity = dict(zip(scored["entity_id"], scored.get("role", [])))
     entities = corr.entities
     top_entities: list[dict[str, Any]] = []
+
+    # The denominator for an actor's share has to measure the same thing the
+    # actor's own figure measures. `total_value` above is the sum of transaction
+    # OUTPUTS -- the true value moved. An entity's `value_btc` is its sent outputs
+    # PLUS its received inputs, so every transaction contributes to it twice and
+    # dividing by the output total can produce a share above 100%. Using the sum
+    # of the entities' own figures keeps numerator and denominator consistent.
+    attributed_value = float(entities["value_btc"].sum()) if not entities.empty else 0.0
+
     if not entities.empty:
         ranked = entities.sort_values("value_btc", ascending=False).head(top_n)
         for row in ranked.itertuples(index=False):
@@ -150,8 +159,8 @@ def corpus_statistics(
                 "value_btc": round(float(row.value_btc), 8),
                 "tx_count": int(row.tx_count),
                 "flagged": bool(risk_by_entity.get(row.entity_id, 0) >= flagged_floor),
-                "share_of_value": round(float(row.value_btc) / total_value, 6)
-                                   if total_value > 0 else 0.0,
+                "share_of_value": round(float(row.value_btc) / attributed_value, 6)
+                                   if attributed_value > 0 else 0.0,
             })
 
     # ---- geography across ALL traffic, with the flagged count inside each ----
