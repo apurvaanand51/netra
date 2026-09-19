@@ -70,13 +70,19 @@ measuring it properly rather than hoping (§2.4).
 ### 1.3 The outlier problem was already inside our explainability
 
 Our per-entity attributions are `global_importance × z_score`, where the z-score
-uses the training set's **mean and standard deviation**. One 10,000 BTC whale
+uses the training set's **mean and standard deviation**. One corrupt value
 inflates that standard deviation, and **every other entity's attribution for that
 feature collapses toward zero.**
 
+Measured, by contaminating a single row of the feature matrix and re-measuring
+the mean `|z|` across all 533 entities: the mean/std attributions lose **62% of
+their magnitude** (median across the 24 features, worst features −69%). The same
+test against a **median/MAD** z-score moves by **+0.4%**.
+
 This is not a hypothetical about future SQL data — it is a live defect in the
-explanations we ship today. It also pointed at the wider problem: our ingestion
-rejects malformed *rows* but does nothing about statistically hostile *values*.
+explanations we shipped, and it was found by testing rather than by reading. It
+also pointed at the wider problem: our ingestion rejects malformed *rows* but
+does nothing about statistically hostile *values*.
 
 Related, and found the same way — by feeding the ingestion layer deliberately
 broken input: a 3-octet IP address (`40.52.114`) was **silently accepted**.
