@@ -100,6 +100,21 @@ def explain_decision_tree(estimator, row: np.ndarray, n_features: int, positive_
     return _class_probability(tree, 0, positive_index), contributions, current
 
 
+def _unwrap(model: Any) -> Any:
+    """Accept our own wrapper, or a bare sklearn / XGBoost estimator.
+
+    `RiskModel` keeps the fitted forest on `.model` and holds no `estimators_`
+    of its own, so handing the wrapper straight to the path walker found no
+    trees and returned an EMPTY explanation list -- no exception, no warning,
+    just every entity silently arriving without a reason. Accepting either shape
+    here is what stops that recurring.
+    """
+    inner = getattr(model, "model", None)
+    if inner is not None and hasattr(inner, "predict_proba"):
+        return inner
+    return model
+
+
 def explain_forest(
     model: Any,
     X: np.ndarray,
@@ -115,9 +130,10 @@ def explain_forest(
     if len(X) == 0:
         return []
 
-    if HAS_XGBOOST and _is_xgboost(model):
-        return _explain_xgboost(model, X, feature_names)
-    return _explain_sklearn_forest(model, X, feature_names)
+    resolved = _unwrap(model)
+    if HAS_XGBOOST and _is_xgboost(resolved):
+        return _explain_xgboost(resolved, X, feature_names)
+    return _explain_sklearn_forest(resolved, X, feature_names)
 
 
 def _is_xgboost(model: Any) -> bool:

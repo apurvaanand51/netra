@@ -33,7 +33,26 @@
       "description": "Share of entity activity by country, descending. Powers the geo panel.",
       "items": { "$ref": "#/$defs/GeoRow" }
     },
-    "metrics": { "$ref": "#/$defs/Metrics" }
+    "metrics": { "$ref": "#/$defs/Metrics" },
+
+    "window": {
+      "$ref": "#/$defs/WindowInfo",
+      "description": "MONITORING ADDITION. Which time window this payload covers. Absent for a one-shot batch analysis, present for a windowed run -- so the dashboard always knows what 'now' means."
+    },
+    "fleet": {
+      "$ref": "#/$defs/Fleet",
+      "description": "MONITORING ADDITION. Fleet-level counts for the baseline strip: is the FEED changing, not just the wallets in it."
+    },
+    "events": {
+      "type": "array",
+      "description": "MONITORING ADDITION. What changed since the previous window, with attribution. A score is a state; an event is a finding. Optional so a single-batch payload still validates.",
+      "items": { "$ref": "#/$defs/Event" }
+    },
+    "traces": {
+      "type": "array",
+      "description": "MONITORING ADDITION. Traced fund paths from a lead to the services it reached. An ESTIMATE, not a fact -- see the required `method` and `assumption` fields.",
+      "items": { "$ref": "#/$defs/Trace" }
+    }
   },
 
   "$defs": {
@@ -88,6 +107,39 @@
         "first_seen": { "type": "string", "format": "date-time" },
         "last_seen": { "type": "string", "format": "date-time" },
         "model": { "type": "string", "description": "Which model produced the risk score" },
+        "community_id": { "type": ["integer", "null"], "description": "Graph community this entity belongs to, or null if it carries no material flow. NOT a verdict: weak community structure is a property of the data." },
+        "community_size": { "type": ["integer", "null"], "minimum": 0, "description": "Size of that community, or 0 when the entity is in none. Never the size of the unassigned bucket -- 79 unrelated wallets are not an operation." },
+        "graph_role": {
+          "type": ["string", "null"],
+          "enum": ["collector", "distributor", "relay", "cash-out/exchange", "mixing service", "wallet", null],
+          "description": "Function within the flow graph. A heuristic label for the analyst's narrative, NOT a model input -- a rule-derived label fed to the model as a feature is how a rule quietly becomes the answer."
+        },
+        "history": {
+          "type": "array",
+          "description": "Risk across windows, oldest first. Powers the per-entity trend sparkline; an entity with no history has this empty rather than a fabricated flat line.",
+          "items": {
+            "type": "object",
+            "required": ["window", "risk", "band"],
+            "additionalProperties": false,
+            "properties": {
+              "window": { "type": "string" },
+              "risk": { "type": "integer", "minimum": 0, "maximum": 100 },
+              "band": { "type": "string", "enum": ["critical", "high", "medium", "low"] }
+            }
+          }
+        },
+        "explanation": {
+          "type": "object",
+          "description": "How the score decomposes. `base + contributions == prediction` up to `residual`, which is reported rather than assumed: a non-zero residual means the explanation does not reconcile with the score on screen.",
+          "required": ["method", "base", "prediction", "residual"],
+          "additionalProperties": false,
+          "properties": {
+            "method": { "type": "string", "description": "e.g. 'exact TreeSHAP (XGBoost pred_contribs)' or 'exact decision-path contributions (Saabas), not Shapley'. Named because they are NOT equivalent and we do not call both SHAP." },
+            "base": { "type": "number" },
+            "prediction": { "type": "number", "minimum": 0, "maximum": 1 },
+            "residual": { "type": "number", "description": "prediction - (base + sum of contributions). Should be ~0; reported so it can be checked." }
+          }
+        },
         "features": {
           "type": "array",
           "description": "Feature attributions for the explainability panel bars",
@@ -179,7 +231,33 @@
         "description": { "type": "string" },
         "meta": { "type": "string", "description": "Short secondary line e.g. 'bc1qend ... 184.6 BTC'" },
         "evidence": { "type": "array", "items": { "type": "string" } },
-        "txids": { "type": "array", "items": { "type": "string" } }
+        "txids": { "type": "array", "items": { "type": "string" } },
+
+        "status": {
+          "type": "string",
+          "enum": ["new", "acknowledged", "investigating", "closed_false_positive", "closed_escalated"],
+          "description": "MONITORING ADDITION. The analyst's decision, remembered between runs. This is what separates a tool from a report."
+        },
+        "first_window": { "type": ["string", "null"], "description": "Label of the window this lead first appeared in" },
+        "last_window": { "type": ["string", "null"], "description": "Most recent window it was still above the floor. An alert that keeps updating is one alert, not one per run." },
+        "peak_risk": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+        "assignee": { "type": ["string", "null"] },
+        "changes": {
+          "type": "array",
+          "description": "MONITORING ADDITION: why this moved, ranked by change in robust z. 'Risk went up' is not actionable; 'risk 14 -> 55 because burst concentration 0.2 -> 0.5' is.",
+          "items": {
+            "type": "object",
+            "required": ["feature", "label", "from", "to"],
+            "additionalProperties": false,
+            "properties": {
+              "feature": { "type": "string" },
+              "label": { "type": "string" },
+              "from": { "type": "number" },
+              "to": { "type": "number" },
+              "delta_z": { "type": "number", "description": "Change measured in robust standard deviations (median/MAD), so one whale cannot make everything else look shifted." }
+            }
+          }
+        }
       }
     },
 
@@ -259,6 +337,108 @@
         "false_negatives": { "type": ["integer", "null"] },
         "train_size": { "type": ["integer", "null"] },
         "test_size": { "type": ["integer", "null"] }
+      }
+    },
+
+    "WindowInfo": {
+      "type": "object",
+      "description": "Which slice of time this payload covers. Every number in a monitoring payload is window-scoped, so the window has to be on screen.",
+      "required": ["id", "label", "start", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "label": { "type": "string" },
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" },
+        "index": { "type": "integer", "minimum": 1, "description": "Position in the sequence, 1-based" },
+        "total": { "type": "integer", "minimum": 1, "description": "How many windows exist, so the UI can render '4 of 9' without a second request" }
+      }
+    },
+
+    "Fleet": {
+      "type": "object",
+      "description": "Counts about the FEED rather than the wallets in it, so an analyst can tell whether the data changed or the world did.",
+      "additionalProperties": false,
+      "properties": {
+        "transactions": { "type": "integer", "minimum": 0 },
+        "entities": { "type": "integer", "minimum": 0 },
+        "new_entities": { "type": "integer", "minimum": 0 },
+        "merged_entities": { "type": "integer", "minimum": 0 },
+        "rows_rejected": { "type": "integer", "minimum": 0, "description": "Rejected by the data-quality gate. Silent data loss is indefensible, so the count is surfaced rather than swallowed." },
+        "events": { "type": "integer", "minimum": 0 },
+        "open_alerts": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "Event": {
+      "type": "object",
+      "description": "Something that CHANGED. A score is a state; a state that has not changed tells an analyst nothing new. Includes event types that can only exist across time (DORMANT, RESURGENT).",
+      "required": ["id", "window", "entity", "type", "severity"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "window": { "type": "string" },
+        "entity": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["NEW_ENTITY", "ESCALATION", "DE_ESCALATION", "DORMANT", "RESURGENT",
+                   "CLUSTER_GROWTH", "BEHAVIOUR_SHIFT", "CLUSTER_MERGE"]
+        },
+        "severity": { "type": "string", "enum": ["critical", "high", "medium", "low", "info"] },
+        "title": { "type": "string", "description": "Headline the analyst reads first" },
+        "detail": { "type": "string", "description": "The reason in plain language, built from the attribution" },
+        "risk_from": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+        "risk_to": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+        "absorbed": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "CLUSTER_MERGE only: entity keys absorbed into this one. Two operations being linked is a finding, not bookkeeping."
+        },
+        "changes": {
+          "type": "array",
+          "description": "Attribution: which features moved, ranked by change in robust z",
+          "items": {
+            "type": "object",
+            "required": ["feature", "label", "from", "to"],
+            "additionalProperties": false,
+            "properties": {
+              "feature": { "type": "string" },
+              "label": { "type": "string" },
+              "from": { "type": "number" },
+              "to": { "type": "number" },
+              "delta_z": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+
+    "Trace": {
+      "type": "object",
+      "description": "A traced fund path from a seed to the services it reached. ALWAYS an estimate: Bitcoin is fungible, so per-hop allocation is an allocation MODEL, not a fact. `method` and `assumption` are required so a traced figure can never be quoted without the model that produced it.",
+      "required": ["seed", "tainted", "method", "assumption", "sinks"],
+      "additionalProperties": false,
+      "properties": {
+        "seed": { "type": "string" },
+        "tainted": { "type": "number", "minimum": 0, "description": "Value the seed sent outward" },
+        "hops_reached": { "type": "integer", "minimum": 0 },
+        "method": { "type": "string" },
+        "assumption": { "type": "string" },
+        "sinks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["entity", "kind", "amount", "hops", "path"],
+            "additionalProperties": false,
+            "properties": {
+              "entity": { "type": "string" },
+              "kind": { "type": "string", "enum": ["exchange", "mixer"] },
+              "amount": { "type": "number", "minimum": 0 },
+              "hops": { "type": "integer", "minimum": 1 },
+              "path": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
       }
     }
   }
