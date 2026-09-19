@@ -112,7 +112,13 @@ const num = (v, digits = 0) => (v === null || v === undefined || Number.isNaN(Nu
 const btc = (v) => (v === null || v === undefined)
   ? "—" : `${num(v, Math.abs(Number(v)) < 1 ? 4 : 2)}`;
 const pct = (v, digits = 1) => (v === null || v === undefined) ? "—" : `${(Number(v) * 100).toFixed(digits)}%`;
-const plainFeature = (name) => FEATURE_PLAIN[name] || String(name).replace(/_/g, " ");
+const plainFeature = (name) => FEATURE_PLAIN[name] || String(name).replace(/_/g, "_");
+/** A number with no trailing zeros, for reading inside a sentence. */
+const compact = (value, digits = 4) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  return number === 0 ? "0" : String(Number(number.toFixed(digits)));
+};
 const shortKey = (key) => {
   const text = String(key ?? "");
   return text.length > 14 ? `${text.slice(0, 9)}…${text.slice(-4)}` : text;

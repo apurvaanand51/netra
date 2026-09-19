@@ -16,10 +16,10 @@ const NETRA = (() => {
   const PAGES = [
     { href: "index.html", label: "Ingest", ready: true },
     { href: "traffic.html", label: "Traffic", ready: true },
-    { href: "investigate.html", label: "Investigate", ready: false },
-    { href: "monitoring.html", label: "Monitoring", ready: false },
-    { href: "model.html", label: "Method", ready: false },
-    { href: "documents.html", label: "Documents", ready: false },
+    { href: "investigate.html", label: "Investigate", ready: true },
+    { href: "monitoring.html", label: "Monitoring", ready: true },
+    { href: "model.html", label: "Method", ready: true },
+    { href: "documents.html", label: "Documents", ready: true },
   ];
 
   let counters = [];

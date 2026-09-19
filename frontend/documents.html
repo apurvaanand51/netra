@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NETRA — documents</title>
+<link rel="stylesheet" href="vendor/fonts.css">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<header class="topbar" id="topbar"></header>
+
+<main class="page">
+  <div class="pageHead">
+    <h1>How it was built</h1>
+    <p>
+      The project's own working documents, served from this machine. They include the review that reshaped the
+      project, the full model card, and the defects we found and reported against ourselves — the ones that make
+      the measured figures worth reading.
+    </p>
+  </div>
+
+  <div class="docs">
+    <nav class="docsNav">
+      <h2>Documents</h2>
+      <ul id="docList"></ul>
+      <p class="muted small" style="margin-top:14px">
+        Readable offline. No external requests, no fonts or scripts fetched at runtime.
+      </p>
+    </nav>
+    <article class="docsBody" id="docBody">
+      <div class="empty"><b>Pick a document.</b><span>Everything is readable offline.</span></div>
+    </article>
+  </div>
+</main>
+
+<footer class="strip" id="strip"></footer>
+
+<script src="assets/api.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/documents.js"></script>
+</body>
+</html>

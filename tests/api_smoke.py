@@ -184,21 +184,67 @@ def main() -> int:
         check("reload reports cleared caches", "cleared_caches" in response.json())
 
         print("\n=== the site ===")
-        response = client.get("/")
-        check("GET / serves the ingest page", response.status_code == 200, response.text[:200])
-        check("entry point is the ingest page",
-              "NETRA" in response.text and "read the traffic" in response.text)
+        pages = {
+            "/": "read the traffic",
+            "/index.html": "read the traffic",
+            "/traffic.html": "everything the tool read",
+            "/investigate.html": "Which groups need attention",
+            "/monitoring.html": "What changed, and when",
+            "/model.html": "How well does it work",
+            "/documents.html": "How it was built",
+        }
+        for path, marker in pages.items():
+            response = client.get(path)
+            check(f"GET {path} -> 200", response.status_code == 200, response.text[:160])
+            check(f"{path} is its own page", marker in response.text)
 
-        response = client.get("/traffic.html")
-        check("GET /traffic.html -> 200", response.status_code == 200, response.text[:200])
-        check("traffic page is the whole-capture analysis",
-              "everything the tool read" in response.text)
-
-        for asset in ("assets/app.css", "assets/api.js", "assets/nav.js", "assets/traffic.js",
-                      "assets/index.js", "vendor/vis-network.min.js", "vendor/chart.umd.min.js"):
+        assets = [
+            "assets/app.css", "assets/api.js", "assets/nav.js", "assets/index.js",
+            "assets/traffic.js", "assets/investigate.js", "assets/monitoring.js",
+            "assets/model.js", "assets/documents.js",
+            "vendor/vis-network.min.js", "vendor/chart.umd.min.js", "vendor/fonts.css",
+        ]
+        for asset in assets:
             response = client.get(f"/{asset}")
             check(f"asset served: {asset}", response.status_code == 200, response.text[:120])
 
+        for path in pages:
+            body = client.get(path).text
+            check(f"no CDN reference in {path}",
+                  "cdn." not in body and "http://" not in body and "https://" not in body)
+
+        print("\n=== the monitoring summary endpoint ===")
+        response = client.get("/monitoring")
+        check("GET /monitoring -> 200", response.status_code == 200, response.text[:200])
+        summary = response.json()
+        check("batches listed with per-batch change counts",
+              all("events" in batch for batch in summary["batches"]))
+        check("alert lifecycle counted", isinstance(summary["alert_status"], dict))
+        check("event types counted", isinstance(summary["event_types"], dict))
+        check("time-to-detection reported",
+              "planted_entities" in summary["time_to_detection"])
+
+        print("\n=== frontend assets parse ===")
+        # A syntax error in ONE asset blanks an entire page, and the page still
+        # returns HTTP 200 -- so route-level tests cannot see it. This nearly
+        # shipped: a Python format specifier (`${x:g}`) left in a JavaScript
+        # template literal meant investigate.html rendered its header and
+        # nothing else. `node --check` is the cheapest possible gate.
+        import shutil as _shutil
+        import subprocess as _subprocess
+
+        node = _shutil.which("node")
+        if not node:
+            print("  ..  node not on PATH; skipping the JavaScript syntax check")
+        else:
+            assets_dir = ROOT / "frontend" / "assets"
+            for path in sorted(assets_dir.glob("*.js")):
+                result = _subprocess.run(
+                    [node, "--check", str(path)], capture_output=True, text=True,
+                )
+                check(f"{path.name} parses", result.returncode == 0, result.stderr[:220])
+
+        print("\n=== documents ===")
         response = client.get("/documents/index.json")
         check("GET /documents/index.json -> 200", response.status_code == 200, response.text[:200])
         documents = response.json()["documents"]
@@ -206,12 +252,7 @@ def main() -> int:
         for doc in documents:
             response = client.get(f"/documents/{doc['file']}")
             check(f"document served offline: {doc['file']}", response.status_code == 200)
-
-        for page in ("index.html", "traffic.html", "assets/app.css", "assets/api.js"):
-            body = client.get(f"/{page}").text if page.endswith(".html") else ""
-            if body:
-                check(f"no CDN reference in {page}",
-                      "cdn." not in body and "http://" not in body and "https://" not in body)
+            check(f"{doc['file']} is non-trivial", len(response.text) > 1500)
 
     print(f"\n  {len(PASSED)} passed, {len(FAILED)} failed")
     if FAILED:

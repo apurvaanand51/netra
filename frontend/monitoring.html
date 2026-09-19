@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NETRA — monitoring</title>
+<link rel="stylesheet" href="vendor/fonts.css">
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  .transport { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .scrub { flex: 1 1 220px; min-width: 160px; height: 5px; background: var(--line); position: relative; cursor: pointer; }
+  .scrub i { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
+  .work { display: grid; grid-template-columns: minmax(420px, 1fr) 400px; gap: 16px; align-items: start; }
+  @media (max-width: 1100px) { .work { grid-template-columns: minmax(0, 1fr); } }
+  .filters { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<header class="topbar" id="topbar"></header>
+
+<main class="page">
+  <div class="pageHead">
+    <h1>What changed, and when?</h1>
+    <p>
+      A score is a state, and a state that has not changed tells an analyst nothing new. This page reports the
+      <b>deltas</b>: a group that became riskier, went quiet, came back, grew, or merged with another. Some of these
+      events can only exist across time — <em>went quiet</em> is not visible in a single batch.
+    </p>
+    <div class="transport" style="margin-top:14px">
+      <button class="btn icon" id="firstBtn" title="First batch">&#9198;</button>
+      <button class="btn icon" id="prevBtn" title="Previous batch">&#9664;</button>
+      <button class="btn icon" id="playBtn" title="Replay the batches">&#9654;</button>
+      <button class="btn icon" id="nextBtn" title="Next batch">&#9654;&#9654;</button>
+      <div class="scrub" id="scrub" title="Jump to a batch"></div>
+      <span class="mono small" id="batchLabel">—</span>
+    </div>
+  </div>
+
+  <div class="grid g4" id="headline" style="margin-bottom:16px"></div>
+
+  <div class="work">
+    <section class="card">
+      <div style="display:flex;align-items:center;gap:8px">
+        <h2 style="margin:0">Changes in this batch</h2>
+        <span class="mono small muted" id="eventCount" style="margin-left:auto"></span>
+      </div>
+      <p class="sub" id="feedSub">Only groups at or above the alerting floor produce events, so the feed stays
+        readable.</p>
+      <div class="filters" id="filters"></div>
+      <div class="feed" id="feed"></div>
+      <div class="empty" id="feedEmpty" hidden>
+        <b>No changes in this batch.</b>
+        <span>Nothing crossed a threshold, went quiet, or merged. That is a valid result — an unchanged day
+        looks like this.</span>
+      </div>
+
+      <h2 style="margin-top:20px">Every batch so far</h2>
+      <table class="data" id="batchTable"></table>
+    </section>
+
+    <section>
+      <div class="card">
+        <h2>Lead lifecycle</h2>
+        <p class="sub">An alert is one row per wallet group, updated in place. A group critical for four
+          batches is <b>one</b> alert whose history grows, not four nobody can triage.</p>
+        <div id="lifecycle"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2>How fast we noticed</h2>
+        <p class="sub">Measured against cases we planted ourselves, so it is a result rather than a claim.</p>
+        <div id="detection"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2>Open leads</h2>
+        <p class="sub">Highest priority first, with the analyst's decision remembered between runs.</p>
+        <div id="alertTable"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="strip" id="strip"></footer>
+
+<script src="assets/api.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/monitoring.js"></script>
+</body>
+</html>

@@ -374,6 +374,61 @@ def reload_state() -> dict[str, Any]:
     }
 
 
+@app.get("/monitoring", summary="Batches, events, alert lifecycle, and detection speed")
+def monitoring() -> dict[str, Any]:
+    """Everything the Monitoring page needs, in one call.
+
+    Assembled server-side rather than by the page making four requests, because
+    the pieces have to agree: the per-batch event counts, the lifecycle totals and
+    the time-to-detection figure all describe the same history, and computing
+    them in separate round trips is how they drift.
+    """
+    from monitoring.pipeline import time_to_detection
+
+    with _open_store() as store:
+        records = store.windows()
+        events = store.events()
+        alerts = store.alerts()
+
+        per_batch = []
+        for position, record in enumerate(records, start=1):
+            batch_events = events[events["window_id"] == record.window_id] if not events.empty else events
+            per_batch.append({
+                "id": record.window_id,
+                "label": record.label,
+                "start": record.start_ts,
+                "end": record.end_ts,
+                "transactions": record.n_tx,
+                "entities": record.n_entities,
+                "events": int(len(batch_events)),
+                "index": position,
+                "total": len(records),
+            })
+
+        type_counts = (
+            {str(k): int(v) for k, v in events["type"].value_counts().items()}
+            if not events.empty else {}
+        )
+        status_counts = (
+            {str(k): int(v) for k, v in alerts["status"].value_counts().items()}
+            if not alerts.empty else {}
+        )
+        severity_counts = (
+            {str(k): int(v) for k, v in events["severity"].value_counts().items()}
+            if not events.empty else {}
+        )
+
+        return {
+            "batches": per_batch,
+            "event_types": type_counts,
+            "alert_status": status_counts,
+            "event_severity": severity_counts,
+            "open_alerts": int((~alerts["status"].str.startswith("closed")).sum()) if not alerts.empty else 0,
+            "time_to_detection": time_to_detection(store, DATA_DIR),
+            "store": store.summary(),
+        }
+
+
 @app.get("/metrics", summary="The measured scorecard")
 def metrics() -> dict[str, Any]:
     path = MODELS_DIR / "metrics.json"
