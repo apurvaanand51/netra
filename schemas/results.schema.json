@@ -1,0 +1,265 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netra.local/schemas/results.schema.json",
+  "title": "NETRA analysis results",
+  "description": "THE FROZEN CONTRACT. The single handshake between the ingestion/correlation layer, the ML core, the FastAPI backend and the NETRA dashboard. If a field changes here, the Captain announces it. Never edit silently.",
+  "type": "object",
+  "required": ["meta", "entities", "edges", "alerts", "clusters", "series", "geo_breakdown", "metrics"],
+  "additionalProperties": false,
+  "properties": {
+    "meta": { "$ref": "#/$defs/Meta" },
+    "entities": {
+      "type": "array",
+      "description": "Every investigative subject: wallet clusters AND network endpoints (IPs). The dashboard graph is built from this list plus `edges`.",
+      "items": { "$ref": "#/$defs/Entity" }
+    },
+    "edges": {
+      "type": "array",
+      "description": "Graph links. kind=flow is an on-chain value transfer; kind=control is a network-layer observation (IP controlled/relayed a wallet).",
+      "items": { "$ref": "#/$defs/Edge" }
+    },
+    "alerts": {
+      "type": "array",
+      "description": "Ranked investigative leads, most severe first. This is the product - a lead list, not a verdict list.",
+      "items": { "$ref": "#/$defs/Alert" }
+    },
+    "clusters": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Cluster" }
+    },
+    "series": { "$ref": "#/$defs/Series" },
+    "geo_breakdown": {
+      "type": "array",
+      "description": "Share of entity activity by country, descending. Powers the geo panel.",
+      "items": { "$ref": "#/$defs/GeoRow" }
+    },
+    "metrics": { "$ref": "#/$defs/Metrics" }
+  },
+
+  "$defs": {
+    "Meta": {
+      "type": "object",
+      "required": ["records", "entities", "generated_at", "runtime_ms"],
+      "additionalProperties": false,
+      "properties": {
+        "records": { "type": "integer", "minimum": 0, "description": "Normalized transaction observations ingested" },
+        "transactions": { "type": "integer", "minimum": 0, "description": "Distinct txids seen" },
+        "entities": { "type": "integer", "minimum": 0 },
+        "total_value_btc": { "type": "number", "minimum": 0, "description": "Sum of all output amounts across the ingested records -- the true total value moved. Reported so the dashboard never has to invent a headline figure." },
+        "flagged_entities": { "type": "integer", "minimum": 0, "description": "Entities at or above the medium risk band" },
+        "generated_at": { "type": "string", "format": "date-time" },
+        "runtime_ms": { "type": "integer", "minimum": 0 },
+        "dataset": { "type": "string", "description": "e.g. synthetic_v1" },
+        "source_file": { "type": "string" },
+        "engine_version": { "type": "string" }
+      }
+    },
+
+    "Entity": {
+      "type": "object",
+      "required": ["id", "label", "kind", "risk", "risk_band"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[EN]-[0-9]{4,}$", "description": "E-#### for wallet clusters, N-#### for network endpoints. Four or more digits -- larger datasets produce 5-digit ids." },
+        "label": { "type": "string", "description": "Short display label for the graph node" },
+        "kind": {
+          "type": "string",
+          "enum": ["wallet", "exchange", "mixer", "seed", "ip", "unknown"],
+          "description": "Drives node colour/shape in the dashboard"
+        },
+        "role": { "type": "string", "description": "One-sentence human explanation of what this node is" },
+        "addresses": { "type": "array", "items": { "type": "string" } },
+        "cluster": { "type": ["string", "null"], "description": "Cluster id this entity belongs to, or null" },
+        "cluster_size": { "type": "integer", "minimum": 0 },
+        "risk": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "risk_band": { "type": "string", "enum": ["critical", "high", "medium", "low"] },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "anomaly_score": { "type": ["number", "null"], "description": "Raw IsolationForest decision score (lower = more anomalous)" },
+        "typology": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Detected laundering typologies e.g. peel_chain, coinjoin_mixer, ransomware_fanin, cross_border_control"
+        },
+        "geo": { "type": "array", "items": { "type": "string" }, "description": "ISO-3166 alpha-2 country codes observed" },
+        "asn": { "type": "array", "items": { "type": "string" } },
+        "country_count": { "type": "integer", "minimum": 0 },
+        "value_btc": { "type": "number", "minimum": 0 },
+        "tx_count": { "type": "integer", "minimum": 0 },
+        "first_seen": { "type": "string", "format": "date-time" },
+        "last_seen": { "type": "string", "format": "date-time" },
+        "model": { "type": "string", "description": "Which model produced the risk score" },
+        "features": {
+          "type": "array",
+          "description": "Feature attributions for the explainability panel bars",
+          "items": {
+            "type": "object",
+            "required": ["name", "value", "importance"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "value": { "type": "number" },
+              "importance": { "type": "number", "description": "Signed contribution. Positive pushes toward illicit." }
+            }
+          }
+        },
+        "reasons": {
+          "type": "array",
+          "description": "Plain-English justifications shown on every lead. This is what makes a lead defensible.",
+          "items": {
+            "type": "object",
+            "required": ["icon", "severity", "title", "detail"],
+            "additionalProperties": false,
+            "properties": {
+              "icon": { "type": "string", "enum": ["flow", "exch", "time", "clus"] },
+              "severity": { "type": "string", "enum": ["critical", "high", "medium", "low", "info"] },
+              "title": { "type": "string" },
+              "detail": { "type": "string" }
+            }
+          }
+        },
+        "timeline": {
+          "type": "array",
+          "description": "Ordered narrative of how the funds moved - shown in the case report",
+          "items": {
+            "type": "object",
+            "required": ["step", "title", "detail"],
+            "additionalProperties": false,
+            "properties": {
+              "step": { "type": "integer", "minimum": 1 },
+              "title": { "type": "string" },
+              "detail": { "type": "string" },
+              "ref": { "type": "string", "description": "txid or address anchoring this step" },
+              "critical": { "type": "boolean" }
+            }
+          }
+        },
+        "facts": {
+          "type": "array",
+          "description": "Key/value pairs for supporting (non-flagged) nodes",
+          "items": {
+            "type": "object",
+            "required": ["label", "value"],
+            "additionalProperties": false,
+            "properties": {
+              "label": { "type": "string" },
+              "value": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+
+    "Edge": {
+      "type": "object",
+      "required": ["from", "to", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "type": "string", "description": "Entity id" },
+        "to": { "type": "string", "description": "Entity id" },
+        "kind": { "type": "string", "enum": ["flow", "control"] },
+        "value": { "type": "number", "minimum": 0, "description": "BTC moved (flow edges)" },
+        "label": { "type": "string", "description": "Display label e.g. '62.4 BTC'" },
+        "txid": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "count": { "type": "integer", "minimum": 1, "description": "Number of transfers aggregated into this edge" },
+        "protocol": { "type": "string", "description": "For control edges e.g. bitcoin-p2p" }
+      }
+    },
+
+    "Alert": {
+      "type": "object",
+      "required": ["id", "entity", "severity", "score", "title", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^AL-[0-9]{2,}$" },
+        "entity": { "type": "string", "description": "Entity id this lead points at; the graph selects this node" },
+        "severity": { "type": "string", "enum": ["critical", "high", "medium", "low", "info"] },
+        "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "meta": { "type": "string", "description": "Short secondary line e.g. 'bc1qend ... 184.6 BTC'" },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "txids": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "Cluster": {
+      "type": "object",
+      "required": ["id", "size", "method"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "size": { "type": "integer", "minimum": 0 },
+        "method": { "type": "string", "description": "e.g. common_input+connected_components" },
+        "members": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "Series": {
+      "type": "object",
+      "required": ["hourly_volume", "risk_bands"],
+      "additionalProperties": false,
+      "properties": {
+        "hourly_volume": {
+          "type": "array",
+          "description": "3-hour buckets of traced BTC - the volume bar chart",
+          "items": {
+            "type": "object",
+            "required": ["hour", "btc"],
+            "additionalProperties": false,
+            "properties": {
+              "hour": { "type": "string", "description": "e.g. '00', '03', ... '21'" },
+              "btc": { "type": "number", "minimum": 0 }
+            }
+          }
+        },
+        "risk_bands": {
+          "type": "object",
+          "description": "Entity counts per band - the risk doughnut chart",
+          "required": ["critical", "high", "medium", "low"],
+          "additionalProperties": false,
+          "properties": {
+            "critical": { "type": "integer", "minimum": 0 },
+            "high": { "type": "integer", "minimum": 0 },
+            "medium": { "type": "integer", "minimum": 0 },
+            "low": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+
+    "GeoRow": {
+      "type": "object",
+      "required": ["country", "code", "share"],
+      "additionalProperties": false,
+      "properties": {
+        "country": { "type": "string", "description": "Display name" },
+        "code": { "type": "string", "pattern": "^[A-Z]{2}$", "description": "ISO-3166 alpha-2; the dashboard derives the flag emoji from this" },
+        "share": { "type": "number", "minimum": 0, "maximum": 1, "description": "Fraction of flagged activity, 0..1" },
+        "entity_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "Metrics": {
+      "type": "object",
+      "description": "Honest evaluation scores against the planted ground truth. Nulls are allowed and mean 'not yet measured' - never fake a number here.",
+      "required": ["evaluated_on"],
+      "additionalProperties": false,
+      "properties": {
+        "evaluated_on": { "type": "string", "description": "e.g. 'planted ground truth, 20% held-out split'" },
+        "risk_precision": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "risk_recall": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "risk_f1": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "risk_auc": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "cluster_ari": { "type": ["number", "null"], "minimum": -1, "maximum": 1, "description": "Adjusted Rand Index of clustering vs true_entity_id" },
+        "anomaly_precision_at_k": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "anomaly_k": { "type": "integer", "minimum": 1, "description": "The k in precision@k" },
+        "true_positives": { "type": ["integer", "null"] },
+        "false_positives": { "type": ["integer", "null"] },
+        "false_negatives": { "type": ["integer", "null"] },
+        "train_size": { "type": ["integer", "null"] },
+        "test_size": { "type": ["integer", "null"] }
+      }
+    }
+  }
+}

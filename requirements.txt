@@ -1,0 +1,47 @@
+# NETRA -- runtime requirements
+#
+# Rebuild this exact environment with:
+#     pip install -r requirements.txt
+#
+# For the AIR-GAPPED demo, pre-download every wheel BEFORE the event:
+#     pip download -r requirements.txt -d wheels/
+# then install offline with:
+#     pip install --no-index --find-links=wheels/ -r requirements.txt
+#
+# These pins are the VERIFIED-WORKING set on the practice machine
+# (Windows, Python 3.10). They are deliberately conservative -- old enough to
+# have wheels for every Python version, so the Linux/Docker image builds the
+# same way. If you bump one, bump them all and re-run `python tasks.py smoke`.
+#
+# The comments explain WHY each package is here -- useful for judge questions.
+
+# ---- data wrangling -------------------------------------------------------
+pandas==2.1.4            # the universal in-memory table; ingestion + features
+numpy==1.23.5            # numeric arrays; generator and feature maths
+scipy==1.11.4            # pulled in by scikit-learn; pinned so it resolves offline
+
+# ---- graph algorithms ----------------------------------------------------
+networkx==2.6.3          # entity clustering (connected components) + graph features
+                         # this implements the "common-input heuristic" clustering
+
+# ---- machine learning ----------------------------------------------------
+scikit-learn==1.6.1      # IsolationForest (anomaly, model #1) + RandomForest (risk, #2)
+                         # plus every metric: precision, recall, F1, ROC-AUC, ARI
+joblib==1.2.0            # save/load trained models as .joblib artifacts
+
+# ---- contract validation -------------------------------------------------
+jsonschema==4.17.3       # validate results.json against schemas/results.schema.json
+                         # this is what stops the three squads drifting apart
+
+# ---- web backend ---------------------------------------------------------
+fastapi==0.120.0         # the HTTP API + auto-generated /docs page
+uvicorn==0.38.0          # the ASGI server that actually runs FastAPI
+python-multipart==0.0.20 # required by FastAPI to accept file uploads
+
+# ---- testing -------------------------------------------------------------
+pytest==8.4.2            # the test suite
+httpx==0.28.1            # lets pytest call the FastAPI app without a live server
+
+# NOTE: Faker is deliberately NOT used. Fake addresses/IPs are generated with
+# the standard library `random` module against a fixed seed, which keeps the
+# dataset fully reproducible and removes a dependency. See generator/generate.py.

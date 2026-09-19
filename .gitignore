@@ -1,3 +1,22 @@
+# ---------------- Python ----------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ---------------- Virtual environments ----------------
+.venv/
+venv/
+env/
+_envtest/
+
+# ---------------- Generated data (NEVER commit data) ----------------
+# The GENERATOR is committed; its OUTPUT is not.
+data/*
+!data/.gitkeep
+!data/spec.md
+
 # ---------------- Trained model artifacts ----------------
 # A model is only reproducible if we ship the exact bytes we measured, so the
 # trained artifacts DO travel with the repository. This matters because the
@@ -14,3 +33,18 @@ models/*
 !models/feature_columns.json    # the exact feature order the models expect
 !models/metrics.json            # the measured scorecard, quoted in every report
 !models/ENVIRONMENT.txt         # versions that produced the artifacts (compat check)
+
+# ---------------- Uploads / runtime output ----------------
+uploads/
+out/
+*.log
+
+# ---------------- Offline wheel cache (large, rebuildable) ----------------
+wheels/
+
+# ---------------- OS / editor ----------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
