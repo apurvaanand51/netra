@@ -1,99 +1,103 @@
-<!doctype html>
-<html lang="en" data-theme="dark">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NETRA — ingest traffic</title>
-<link rel="stylesheet" href="vendor/fonts.css">
-<link rel="stylesheet" href="assets/app.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NETRA — AI-Powered Monitoring &amp; Analysis of Bitcoin Transaction Traffic</title>
+<link href="vendor/fonts.css" rel="stylesheet">
+<link href="assets/theme.css" rel="stylesheet">
+<link href="assets/theme-additions.css" rel="stylesheet">
 </head>
 <body>
+<div id="app">
 
-<header class="topbar" id="topbar"></header>
+  <div id="topbar"></div>
 
-<main class="page">
-  <div class="pageHead">
-    <h1>Find the wallets worth investigating — and show the evidence.</h1>
-    <p>
-      Bitcoin transactions are public but not named. NETRA reads a bulk dump of network traffic and
-      transaction records, works out <b>which wallets are controlled by the same person</b>, works out
-      <b>which IP addresses controlled them</b>, and then ranks the groups that behave like money
-      laundering — with the reason attached to each one.
+  <div class="cover">
+    <div>
+      <div class="brand-name">NETRA</div>
+      <div class="brand-sub">Network-Enhanced Transaction Risk Analysis</div>
+    </div>
+
+    <div style="height:26px"></div>
+
+    <div class="eyebrow">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2l3 7h7l-5.5 4.5L18.5 21 12 17l-6.5 4L7.5 13.5 2 9h7z"/>
+      </svg>
+      Smart India Hackathon 2026 · Final round
+    </div>
+
+    <div class="ps-title">
+      AI-Powered Monitoring &amp; Analysis of Bitcoin Transaction Traffic
+    </div>
+    <div class="psref" style="margin-bottom:26px">
+      <span class="chip">SIH26146</span>
+      <span>National Technical Research Organisation</span>
+      <span class="chip">Software</span>
+      <span class="chip">Cryptocurrency</span>
+    </div>
+
+    <p class="lede" style="font-size:17px;color:var(--ink-2);max-width:72ch;margin-bottom:26px">
+      Reads a bulk dump of network and blockchain traffic, works out which wallets are
+      controlled by the same person and which IP addresses controlled them, then returns a
+      ranked, explainable list of investigative leads —
+      <b style="color:var(--ink)">with no network connection at any point.</b>
     </p>
-  </div>
 
-  <div class="grid g2" style="align-items:start">
-    <div>
-      <div class="card">
-        <h2>Step 1 — read the traffic</h2>
-        <p class="sub">Any of CSV, JSON, XML, or a SQLite database. Rows that cannot be parsed are
-          reported with a reason, never quietly dropped.</p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
-          <button class="btn primary lg" id="demoBtn">Run on the built-in dataset</button>
-          <label class="btn lg" for="fileInput">Upload your own file</label>
-          <input type="file" id="fileInput" hidden accept=".csv,.txt,.json,.xml,.sqlite,.sqlite3,.db">
-        </div>
-        <div id="gate" hidden style="margin-top:14px">
-          <h2>What we made of that file</h2>
-          <div class="grid g4" id="gateGrid" style="margin-top:8px"></div>
-          <div id="gateReasons" class="muted small" style="margin-top:10px"></div>
+    <!-- Teaser numbers, read from the running system rather than typed in: a cover
+         quoting figures the tool cannot produce is the first thing a judge checks. -->
+    <div class="stat-grid" id="coverStats" style="max-width:760px"></div>
+
+    <div class="two-col" style="margin-top:34px;max-width:1000px">
+      <div>
+        <h4 style="font-size:12px;color:var(--ink-3);font-weight:700;letter-spacing:.1em;
+                   text-transform:uppercase;margin-bottom:13px">Team Vortex</h4>
+        <div class="team-grid">
+          <div><div class="tn">Apurv</div><div class="tr">Captain · Integrator · Demo</div></div>
+          <div><div class="tn">[ name ]</div><div class="tr">Platform · API · Interface</div></div>
+          <div><div class="tn">[ name ]</div><div class="tr">Data · Ingestion · Correlation</div></div>
+          <div><div class="tn">[ name ]</div><div class="tr">Machine Learning · Evaluation</div></div>
+          <div><div class="tn">[ name ]</div><div class="tr">[ role ]</div></div>
+          <div><div class="tn">[ name ]</div><div class="tr">[ role ]</div></div>
         </div>
       </div>
-
-      <div class="card" style="margin-top:16px">
-        <h2>Step 2 — what happens to it</h2>
-        <ol style="margin:8px 0 0;padding-left:18px;color:var(--ink-2);font-size:12.5px;line-height:1.7">
-          <li><b style="color:var(--ink)">Group wallets into owners.</b> In Bitcoin you must sign for every
-            wallet you spend from, so wallets spent together belong to one person.</li>
-          <li><b style="color:var(--ink)">Join the two worlds.</b> We match the IP that broadcast a
-            transaction with the wallet it moved. That is how a wallet gets a country.</li>
-          <li><b style="color:var(--ink)">Describe the whole capture.</b> Volume, value distribution,
-            geography and behaviour composition across <em>everything</em> read.</li>
-          <li><b style="color:var(--ink)">Rank, and explain.</b> Two trained models score every group, and
-            each score comes with the factors that produced it and the money trail it follows.</li>
-        </ol>
+      <div>
+        <h4 style="font-size:12px;color:var(--ink-3);font-weight:700;letter-spacing:.1em;
+                   text-transform:uppercase;margin-bottom:13px">What it does differently</h4>
+        <div style="display:flex;flex-direction:column;gap:13px;font-size:14px">
+          <div><b>Offline by design.</b>
+            <span style="color:var(--ink-2)">Everything runs on one machine with no network
+            access — a requirement of the problem statement, not a preference.</span></div>
+          <div><b>Analyses everything, reports the share that matters.</b>
+            <span style="color:var(--ink-2)">Every transaction is examined. The flagged groups
+            are shown as a proportion of the whole.</span></div>
+          <div><b>Explainable by construction.</b>
+            <span style="color:var(--ink-2)">Each score decomposes into the factors behind it,
+            and the parts sum exactly to the number on screen.</span></div>
+        </div>
       </div>
     </div>
 
-    <div>
-      <div class="card">
-        <h2>What you will see, and where</h2>
-        <table class="data" style="margin-top:6px">
-          <tbody>
-            <tr><td><b>Traffic</b></td><td class="muted">What is in this data? The whole capture: volume,
-              value shape, geography, and how the wallets behave.</td></tr>
-            <tr><td><b>Investigate</b></td><td class="muted">Which groups need attention, why, and what
-              the money trail looks like.</td></tr>
-            <tr><td><b>Monitoring</b></td><td class="muted">What changed since the last batch — a group
-              that got riskier, went quiet, or merged with another.</td></tr>
-            <tr><td><b>Method</b></td><td class="muted">How well it works, against what, and what it must
-              not be used for.</td></tr>
-            <tr><td><b>Documents</b></td><td class="muted">How it was built, including the mistakes.</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="card" style="margin-top:16px">
-        <h2>Current state</h2>
-        <div id="stateStats" class="empty">
-          <b>Checking…</b><span>Reading the local analysis store.</span>
-        </div>
-      </div>
-
-      <div class="caveat">
-        <b>Everything runs on this machine.</b> No internet connection is used or needed — that is a
-        requirement of the problem statement, not a preference. The dataset shipped with this build is
-        <b>synthetic, with planted illicit patterns</b>, which is what lets the accuracy figures be
-        measured rather than claimed.
-      </div>
+    <div class="cta-row" style="margin-top:32px">
+      <a class="btn btn-primary" href="ingest.html">
+        Enter the console
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h14"/><path d="M12 5l7 7-7 7"/>
+        </svg>
+      </a>
+      <a class="btn btn-ghost" href="dataset.html">See what is in the data</a>
+      <span class="mono" style="font-size:12.5px;color:var(--ink-3)" id="coverState"></span>
     </div>
   </div>
-</main>
 
-<footer class="strip" id="strip"></footer>
+  <div id="strip"></div>
+</div>
 
 <script src="assets/api.js"></script>
 <script src="assets/nav.js"></script>
-<script src="assets/index.js"></script>
+<script src="assets/cover.js"></script>
 </body>
 </html>

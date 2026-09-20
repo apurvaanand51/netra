@@ -584,6 +584,18 @@ class MonitoringStore:
             row = self._connection.execute(sql).fetchone()
             return int(row[0]) if row and row[0] is not None else 0
 
+        # `open_alerts` counts DISTINCT CURRENT identities, not alert rows.
+        #
+        # An alert raised on day 3 for a group that a later batch merged into
+        # another group stays in the table as a historical record, and its key no
+        # longer names a group of its own. Counting rows reported 88 open leads
+        # where the payload reported 85 flagged wallet groups -- and the two
+        # numbers appeared next to each other on the cover. Both were right about
+        # different questions, which is the worst kind of wrong: an unexplained
+        # discrepancy in the one place a reader is checking whether we are honest.
+        #
+        # `entity_alias` is the store's own record of which key became which, so
+        # the resolution happens here rather than in the interface.
         return {
             "windows": scalar("SELECT COUNT(*) FROM windows"),
             "addresses": scalar("SELECT COUNT(*) FROM address_entity"),
@@ -593,6 +605,14 @@ class MonitoringStore:
             "events": scalar("SELECT COUNT(*) FROM events"),
             "alerts": scalar("SELECT COUNT(*) FROM alerts"),
             "open_alerts": scalar(
+                "SELECT COUNT(DISTINCT COALESCE("
+                "  (SELECT a.canonical_key FROM entity_alias a "
+                "   WHERE a.alias_key = alerts.entity_key),"
+                "  alerts.entity_key)) "
+                "FROM alerts WHERE status NOT LIKE 'closed%'"
+            ),
+            # Kept separately so the difference is inspectable rather than lost.
+            "open_alert_rows": scalar(
                 "SELECT COUNT(*) FROM alerts WHERE status NOT LIKE 'closed%'"
             ),
         }

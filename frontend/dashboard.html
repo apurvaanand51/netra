@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NETRA — operational dashboard</title>
+<link href="vendor/fonts.css" rel="stylesheet">
+<link href="assets/theme.css" rel="stylesheet">
+<link href="assets/theme-additions.css" rel="stylesheet">
+</head>
+<body class="shell-on">
+<div id="app">
+
+  <div id="topbar"></div>
+
+  <!-- The day transport. Everything below it is a view of ONE batch, and the
+       batch being shown is stated rather than implied. -->
+  <div class="transport">
+    <button class="tb-btn ico" id="playBtn" title="Replay the batches in order">
+      <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+        <path d="M8 5v14l11-7z"/></svg>
+    </button>
+    <div class="tp-label" id="tpLabel">—</div>
+    <div class="scrub">
+      <input type="range" id="scrubber" min="1" max="1" value="1" step="1"
+             aria-label="Which batch to display">
+      <div class="ticks" id="scrubTicks"></div>
+    </div>
+    <div class="tp-days" id="tpDays"></div>
+    <span class="tp-hint mono" id="tpHint"></span>
+  </div>
+
+  <div class="console-shell">
+
+    <!-- LEAD RAIL -->
+    <aside class="rail">
+      <h3>Leads in this batch <span class="cnt" id="leadCount">0</span></h3>
+      <div id="loading" hidden></div>
+      <div id="railList"></div>
+      <p style="font-size:11.5px;color:var(--ink-3);margin-top:16px;line-height:1.5">
+        Only leads present in the batch being shown. Move the day selector to see the
+        picture at that point in time — a wallet that appears later is not evidence
+        about an earlier batch.
+      </p>
+    </aside>
+
+    <!-- THE GRAPH -->
+    <main class="graph-wrap">
+      <div class="graph-toolbar">
+        <div class="gt-title">
+          <b id="gtTitle">Link analysis</b>
+          <span id="gtSub">—</span>
+        </div>
+        <div class="gt-legend">
+          <span class="lg"><i class="sw wallet"></i>wallet group</span>
+          <span class="lg"><i class="sw ip"></i>IP address</span>
+          <span class="lg"><i class="sw exch"></i>cash-out</span>
+          <span class="lg"><i class="sw mix"></i>mixing</span>
+          <span class="lg">— money moved</span>
+          <span class="lg">┄ controlled from</span>
+        </div>
+      </div>
+      <div id="graph"></div>
+      <div id="graphEmpty" hidden></div>
+      <div class="trace-banner" id="traceBanner" hidden>
+        <div class="ti">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/>
+            <path d="M7.2 10.9l9.6-3.8"/><path d="M7.2 13.1l9.6 3.8"/></svg></div>
+        <div class="tt"><b id="traceTitle">Fund trail</b><span id="traceSub"></span></div>
+        <div class="path" id="tracePath"></div>
+      </div>
+    </main>
+
+    <!-- EVIDENCE -->
+    <aside class="evidence">
+      <div class="ev-head">
+        <div class="ehk">Selected lead</div>
+        <div id="evIdentity" style="font-size:15px;font-weight:700">Nothing selected</div>
+        <div style="font-size:12px;color:var(--ink-3);margin-top:4px" id="evMeta">
+          Click a lead on the left, or a node in the graph.</div>
+      </div>
+      <div class="ev-body" id="evBody">
+        <div class="ev-kpi" id="evKpi"></div>
+        <div class="risk-meter" id="evMeter" hidden>
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px">
+            <span style="font-family:var(--mono);font-size:38px;font-weight:700;line-height:1"
+                  id="evRisk">0</span>
+            <span id="evBand" class="sev med">low</span>
+            <span style="margin-left:auto;font-size:11.5px;color:var(--ink-3)" id="evRiskNote"></span>
+          </div>
+          <div class="risk-track"><i class="rfill" id="evFill" style="width:0"></i></div>
+        </div>
+
+        <div id="evSections"></div>
+
+        <div class="cta-row no-print" style="margin-top:18px">
+          <a class="btn btn-ghost" id="evCase" href="#" target="_blank" rel="noopener"
+             style="padding:9px 14px;font-size:13px">Case report (PDF)</a>
+          <a class="btn btn-ghost" id="evDetail" href="anomalies.html"
+             style="padding:9px 14px;font-size:13px">Explain this lead</a>
+          <button class="btn btn-ghost" id="ackBtn" style="padding:9px 14px;font-size:13px" disabled>
+            Acknowledge</button>
+        </div>
+        <p style="font-size:11.5px;color:var(--ink-3);margin-top:12px;line-height:1.5" id="evFootnote">
+          Acknowledging records the analyst's decision in the store. It is a bookkeeping
+          fact, not an assessment — the score does not change.
+        </p>
+      </div>
+    </aside>
+
+  </div>
+
+  <div id="strip"></div>
+</div>
+
+<script src="assets/api.js"></script>
+<script src="assets/nav.js"></script>
+<script src="vendor/vis-network.min.js"></script>
+<script src="assets/dashboard.js"></script>
+</body>
+</html>

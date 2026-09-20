@@ -86,12 +86,13 @@ if errorlevel 1 exit /b 1
 :serve
 echo.
 echo   NETRA is starting on http://localhost:%PORT%
-echo     Ingest      http://localhost:%PORT%/
-echo     Traffic     http://localhost:%PORT%/traffic.html
-echo     Investigate http://localhost:%PORT%/investigate.html
-echo     Monitoring  http://localhost:%PORT%/monitoring.html
-echo     Method      http://localhost:%PORT%/model.html
+echo     Cover       http://localhost:%PORT%/
+echo     Ingest      http://localhost:%PORT%/ingest.html
+echo     Dataset     http://localhost:%PORT%/dataset.html
+echo     Anomalies   http://localhost:%PORT%/anomalies.html
+echo     Dashboard   http://localhost:%PORT%/dashboard.html
 echo     Documents   http://localhost:%PORT%/documents.html
+echo     Reports     http://localhost:%PORT%/print/dataset  ^(A4, print to PDF^)
 echo     API console http://localhost:%PORT%/docs
 echo.
 echo   Offline check: unplug the network now. Everything above keeps working.

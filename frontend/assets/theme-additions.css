@@ -1,0 +1,415 @@
+/* NETRA — additions for the redesigned pages.
+ *
+ * LOAD ORDER MATTERS: this file must come AFTER theme.css. Everything here uses
+ * the theme's own tokens (--surface, --brand, --crit, --r-md, --shadow-sm) and
+ * overrides a few shell rules that only made sense for the old single-page app.
+ * Nothing here restates a colour or a radius; if it did, the two files would
+ * drift apart the first time the palette changed.
+ *
+ * WHAT IS NEW, AND WHY EACH PIECE EARNS ITS PLACE
+ * -----------------------------------------------
+ * The theme was built for one dense console. These are the pieces our redesign
+ * needs that it had no use for: a real page that scrolls, hero numbers, the
+ * examined-vs-flagged dot grid, the money-trail chain, the plain-language
+ * anomaly cards, and an A4 print layout behind the report buttons.
+ */
+
+/* ==================================================================
+   1 · A PAGE, NOT AN APP SHELL
+   The theme locks scrolling (`body{overflow:hidden}`) and positions views
+   absolutely, because it was a single-screen console that swapped panels in
+   place. These are separate documents that scroll, and one of them is printed.
+   ================================================================== */
+html, body { height: auto; }
+body { overflow: auto; min-height: 100vh; }
+
+/* The `hidden` attribute has to beat any class that sets `display`, or a
+   component that is hidden in the markup appears on first paint. This is not
+   theoretical: a loading panel and a tour popover have both shipped visible
+   because a rule below them said `display:flex`. */
+[hidden] { display: none !important; }
+
+.wrap { max-width: 1240px; margin: 0 auto; padding: 34px 30px 70px; }
+.band { margin-bottom: 40px; }
+.band:last-child { margin-bottom: 20px; }
+.band > h2 { font-size: 23px; font-weight: 700; letter-spacing: -.01em; margin-bottom: 6px; }
+.band > .cap { font-size: 14px; color: var(--ink-3); margin-bottom: 18px; max-width: 84ch; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+@media (max-width: 1000px) { .two-col { grid-template-columns: 1fr; } }
+
+/* ==================================================================
+   2 · THE HERO NUMBERS
+   Big enough to read from the back of a room. `tabular-nums` so a row of
+   figures lines up instead of jittering as the digits change.
+   ================================================================== */
+.hero-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+@media (max-width: 1100px) { .hero-row { grid-template-columns: repeat(2, 1fr); } }
+.hero-num {
+  font-family: var(--mono); font-size: 64px; font-weight: 700;
+  line-height: 1; letter-spacing: -.02em; font-feature-settings: "tnum";
+}
+.hero-num.sm { font-size: 42px; }
+.hero-unit { font-size: 19px; font-weight: 600; color: var(--ink-3); margin-left: 6px; font-family: var(--sans); }
+
+/* The one sentence a presenter reads aloud. Generated on the server from the
+   measured numbers, so it cannot contradict the charts beneath it. */
+.lede-sentence { font-size: 30px; font-weight: 700; line-height: 1.3; letter-spacing: -.015em; max-width: 46ch; margin-bottom: 10px; }
+
+/* ==================================================================
+   3 · CHART CONTAINERS
+   The theme's .chart-box is 240px, sized for a console panel. These pages give
+   each chart its own band, so they get more room.
+   ================================================================== */
+.chart-box.tall { height: 340px; }
+.chart-box.short { height: 220px; }
+.chart-box canvas { width: 100% !important; }
+
+/* ==================================================================
+   4 · THE DOT GRID — examined vs flagged
+   One square per wallet group. This is the single most important visual on the
+   dataset page and it needs no interpretation: 533 squares, 85 of them coloured.
+   It makes the argument the whole project rests on -- we examined everything, and
+   this small part is what matters -- without a word being read.
+   ================================================================== */
+.dotgrid { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 0; }
+.dotgrid i { width: 12px; height: 12px; display: block; border-radius: 3px; background: var(--ink-3); opacity: .26; }
+/* The band names here follow the PAYLOAD (`critical`/`high`/`medium`), not the
+   token names in the theme's own risk bar (`crit`/`med`). They are not the same
+   strings, and a grid of 533 identical grey squares is what a silent mismatch
+   looks like: every square carried its class and none of them matched a rule.
+   Both spellings are accepted so neither side has to remember the other's. */
+.dotgrid i.medium, .dotgrid i.med { background: var(--med); opacity: 1; transform: scale(1.2); }
+.dotgrid i.high { background: var(--high); opacity: 1; transform: scale(1.34); }
+.dotgrid i.critical, .dotgrid i.crit { background: var(--crit); opacity: 1; transform: scale(1.5); }
+
+/* The theme sets a height on the bar fill but never a display, so the fill is an
+   inline <i> whose percentage width resolves against nothing: it lays out at zero
+   width and paints a sliver. Same tokens, one property missing. */
+.geo-row .gbar .gf { display: block; }
+
+/* ==================================================================
+   5 · THE CHAIN — the money trail
+   A reader who has never seen a blockchain can follow arrows. They cannot read a
+   table of txids, which is what the previous evidence panel handed them.
+   ================================================================== */
+.chain { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px 0; }
+.chain .hop {
+  background: var(--surface-2); border: 1px solid var(--border-2); border-radius: var(--r-sm);
+  padding: 9px 13px; font-family: var(--mono); font-size: 12px; font-weight: 500;
+}
+.chain .hop.start { border-color: var(--brand); color: var(--brand); font-weight: 700; }
+.chain .hop.end { border-color: var(--safe); color: var(--safe); font-weight: 700; }
+.chain .hop.mix { border-color: var(--crit); color: var(--crit); font-weight: 700; }
+.chain .arw { color: var(--ink-3); font-size: 15px; line-height: 1; }
+.chain .amt { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+
+/* A multi-hop trace is an allocation model, not an observation. The marker sits
+   beside the number it qualifies, never in a footnote. */
+.est-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  border-radius: 99px; padding: 3px 10px;
+}
+
+/* ==================================================================
+   6 · ANOMALY EXPLAINER CARDS
+   For someone who has never seen Bitcoin. Two lines: the first says what it IS,
+   the second why it MATTERS. If it needs a third, the concept is not understood
+   well enough to explain.
+   ================================================================== */
+.explainers { display: grid; grid-template-columns: repeat(auto-fit, minmax(288px, 1fr)); gap: 16px; }
+.explainer {
+  background: var(--surface); border: 1px solid var(--border-2); border-radius: var(--r-md);
+  padding: 17px 19px; box-shadow: var(--shadow-sm);
+}
+.explainer .eh { display: flex; align-items: center; gap: 11px; margin-bottom: 11px; }
+.explainer .eh .eic {
+  width: 34px; height: 34px; border-radius: 9px; background: var(--surface-2);
+  display: grid; place-items: center; color: var(--brand); flex-shrink: 0;
+}
+.explainer .eh .eic svg { width: 18px; height: 18px; }
+.explainer h4 { font-size: 14.5px; font-weight: 700; }
+.explainer p { font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+.explainer p.why {
+  margin-top: 7px; padding-top: 7px; border-top: 1px dashed var(--border-2);
+  font-size: 12.5px; color: var(--ink-3);
+}
+
+/* ==================================================================
+   7 · LEAD CARDS — the anomalies row
+   Cards rather than a table: a table forces the reader to compare columns, and a
+   card lets them pick one and move on.
+   ================================================================== */
+.leadrow { display: flex; gap: 14px; overflow-x: auto; padding: 4px 2px 14px; }
+.leadcard {
+  flex: 0 0 auto; min-width: 176px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--border-2); border-top: 4px solid var(--border);
+  border-radius: var(--r-md); padding: 15px 17px; box-shadow: var(--shadow-sm); transition: all .18s ease;
+}
+.leadcard:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.leadcard.crit { border-top-color: var(--crit); }
+.leadcard.high { border-top-color: var(--high); }
+.leadcard.med { border-top-color: var(--med); }
+.leadcard.sel { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(30, 64, 175, .14); }
+.leadcard .lc-num { font-family: var(--mono); font-size: 40px; font-weight: 700; line-height: 1; letter-spacing: -.02em; }
+.leadcard .lc-who {
+  font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); margin-top: 7px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.leadcard .lc-kind { font-size: 11.5px; color: var(--ink-2); margin-top: 3px; }
+
+/* ==================================================================
+   8 · THE COVER
+   One screen, no scrolling, because it is on the projector while the team is
+   being introduced and a slide that needs scrolling is a slide that looks broken.
+   ================================================================== */
+.cover { max-width: 1160px; margin: 0 auto; padding: 44px 34px; display: flex; flex-direction: column; justify-content: center; min-height: calc(100vh - 60px); }
+.cover .brand-name { font-size: 46px; letter-spacing: .06em; }
+.cover .brand-sub { font-size: 14px; margin-top: 6px; }
+/* The cover is a flex column, so a badge that is inline-flex in the stylesheet
+   still stretches to the full width of the column. It reads as a bar rather than
+   a badge, which is the sort of thing that only shows up on screen. */
+.cover .eyebrow { align-self: flex-start; }
+.cover .ps-title { font-size: 32px; font-weight: 700; line-height: 1.25; letter-spacing: -.02em; max-width: 34ch; margin-bottom: 10px; }
+.cover .team-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 26px; font-size: 14px; }
+@media (max-width: 900px) { .cover .team-grid { grid-template-columns: 1fr; } }
+.cover .team-grid .tn { font-weight: 600; }
+.cover .team-grid .tr { font-size: 12.5px; color: var(--ink-3); }
+
+/* ==================================================================
+   8b · THE EVIDENCE WATERFALL
+   The theme's .sbar fills from the left, which reads as a magnitude. A waterfall
+   has to read as a DIRECTION — this fact argued for the score, that one argued
+   against it — so the same track gains a centre line and the fill grows out of
+   it. Reusing the track keeps the two bars looking like the same instrument.
+   ================================================================== */
+.shap-row.wide { grid-template-columns: minmax(150px, 210px) 1fr 62px; }
+.shap-row .sbar.split { position: relative; }
+.shap-row .sbar.split::after {
+  content: ''; position: absolute; left: 50%; top: -2px; bottom: -2px;
+  width: 1px; background: var(--border);
+}
+.shap-row .sbar.split .sfill {
+  position: absolute; top: 0; bottom: 0; width: auto;
+  transition: width .8s cubic-bezier(.2, .8, .2, 1);
+}
+.shap-row .sbar.split .sfill.pos { left: 50%; background: var(--crit); border-radius: 0 99px 99px 0; }
+.shap-row .sbar.split .sfill.neg { right: 50%; background: var(--safe); border-radius: 99px 0 0 99px; }
+.shap-scale {
+  display: flex; justify-content: space-between; font-family: var(--mono);
+  font-size: 10px; color: var(--ink-3); margin: 2px 0 0 219px;
+}
+@media print { .shap-scale { margin-left: 0; } }
+
+/* The reconciliation line. It is the claim that the explanation is complete, so
+   it is set apart rather than set small. */
+.reconcile {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-family: var(--mono); font-size: 12px; color: var(--ink-2);
+  background: var(--surface-2); border: 1px dashed var(--border-2);
+  border-radius: var(--r-sm); padding: 11px 14px; margin-top: 14px;
+}
+.reconcile b { color: var(--ink); }
+.reconcile .ok { color: var(--safe); font-weight: 700; }
+
+/* An explainer that the selected lead actually matches. Same card, one extra
+   line stating that it applies HERE -- an explanation the reader has to map onto
+   the case themselves is an explanation half-delivered. */
+.explainer.hit { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent); }
+.explainer .hit-tag {
+  display: inline-block; margin-bottom: 9px; font-size: 10px; font-weight: 700;
+  letter-spacing: .07em; text-transform: uppercase; color: var(--accent);
+}
+.explainer .schem { display: flex; align-items: center; gap: 5px; margin-top: 11px; }
+.explainer .schem i {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--ink-3); opacity: .5; display: block;
+}
+.explainer .schem i.on { background: var(--brand); opacity: 1; }
+.explainer .schem i.cash { background: var(--safe); opacity: 1; }
+.explainer .schem span { flex: 0 0 14px; height: 1.5px; background: var(--border-2); }
+
+/* ==================================================================
+   8c · THE DASHBOARD SHELL AND THE DAY TRANSPORT
+   The one page that goes back to the theme's fixed-height shell: a rail, a graph
+   and an evidence panel that each scroll on their own. A graph that scrolls out
+   of view while you read its evidence is not a dashboard.
+   ================================================================== */
+body.shell-on { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+body.shell-on #app { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.console-shell {
+  display: grid; grid-template-columns: 286px minmax(0, 1fr) 348px;
+  flex: 1; min-height: 0; overflow: hidden;
+}
+.console-shell > * { min-height: 0; }
+@media (max-width: 1240px) { .console-shell { grid-template-columns: 236px minmax(0, 1fr) 306px; } }
+
+.transport {
+  display: flex; align-items: center; gap: 15px; padding: 11px 20px;
+  background: var(--surface); border-bottom: 1px solid var(--border-2); flex-wrap: wrap;
+}
+.transport .tp-label { font-family: var(--mono); font-size: 12.5px; font-weight: 600; min-width: 190px; }
+.transport .tp-hint { font-size: 11.5px; color: var(--ink-3); margin-left: auto; }
+
+/* The scrubber is the day selector. It is a range input underneath, so the
+   keyboard, the arrow keys and the accessibility tree all work without being
+   rebuilt -- a div with a click handler looks the same and is unusable without a
+   mouse. */
+.scrub { flex: 1; min-width: 220px; position: relative; display: flex; align-items: center; }
+.scrub input[type="range"] {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 8px;
+  background: var(--surface-2); border-radius: 99px; outline: none; margin: 0;
+}
+.scrub input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--surface); border: 4px solid var(--brand); cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+.scrub input[type="range"]::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%; background: var(--surface);
+  border: 4px solid var(--brand); cursor: pointer;
+}
+.scrub input[type="range"]::-moz-range-progress { background: var(--brand); height: 8px; border-radius: 99px; }
+.scrub .ticks { position: absolute; inset: 0; pointer-events: none; display: flex;
+  justify-content: space-between; align-items: center; padding: 0 9px; }
+.scrub .ticks i { width: 1px; height: 14px; background: var(--border); display: block; }
+
+.tp-days { display: flex; gap: 6px; }
+.tp-day {
+  font-family: var(--mono); font-size: 11.5px; font-weight: 600; cursor: pointer;
+  padding: 5px 10px; border-radius: 8px; border: 1px solid var(--border-2);
+  background: var(--surface); color: var(--ink-2);
+}
+.tp-day:hover { border-color: var(--brand-2); color: var(--brand); }
+.tp-day.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+/* The panel on the right, in the theme's own evidence vocabulary. */
+.ev-body { padding: 18px 20px; overflow: auto; flex: 1; }
+.ev-kpi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+.ev-kpi div { background: var(--surface-2); border-radius: var(--r-sm); padding: 11px 12px; }
+.ev-kpi span { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--ink-3); margin-bottom: 5px; }
+.ev-kpi b { font-family: var(--mono); font-size: 19px; font-weight: 700; line-height: 1; }
+
+/* ==================================================================
+   8d · THE WRITTEN RECORD
+   A page of prose needs the opposite of what the rest of this interface needs:
+   measured line length, real headings, and a rendered table. Without these the
+   project's own documents read as unstyled text and nobody gets to the part
+   where we list the defects we found in our own work.
+   ================================================================== */
+.docs-layout { display: grid; grid-template-columns: 258px minmax(0, 1fr); gap: 26px; align-items: start; }
+@media (max-width: 940px) { .docs-layout { grid-template-columns: 1fr; } }
+.docs-nav { position: sticky; top: 18px; }
+.docs-nav ul { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+.docs-nav li {
+  cursor: pointer; font-size: 13.5px; padding: 9px 12px; border-radius: var(--r-sm);
+  border: 1px solid var(--border-2); background: var(--surface); color: var(--ink-2);
+  transition: all .16s ease;
+}
+.docs-nav li:hover { border-color: var(--brand-2); color: var(--brand); }
+.docs-nav li.on { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
+
+.docs-body { background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: var(--r-lg); padding: 28px 32px; box-shadow: var(--shadow-sm); }
+.docs-body > :first-child { margin-top: 0; }
+.docs-body h1 { font-size: 26px; letter-spacing: -.015em; margin: 0 0 14px; }
+.docs-body h2 { font-size: 19px; margin: 28px 0 10px; padding-bottom: 7px;
+  border-bottom: 1px solid var(--border-2); }
+.docs-body h3 { font-size: 15.5px; margin: 22px 0 8px; }
+.docs-body h4 { font-size: 13.5px; margin: 18px 0 6px; color: var(--ink-2);
+  text-transform: uppercase; letter-spacing: .06em; }
+.docs-body p, .docs-body li { font-size: 14.5px; line-height: 1.62; color: var(--ink-2); }
+.docs-body p { margin: 0 0 12px; max-width: 78ch; }
+.docs-body ul, .docs-body ol { margin: 0 0 14px; padding-left: 22px; }
+.docs-body li { margin-bottom: 6px; }
+.docs-body li::marker { color: var(--brand); }
+.docs-body strong, .docs-body b { color: var(--ink); }
+.docs-body a { color: var(--brand); text-decoration: underline; text-underline-offset: 2px; }
+.docs-body code { font-family: var(--mono); font-size: 12.5px; background: var(--surface-2);
+  border: 1px solid var(--border-2); border-radius: 5px; padding: 1px 5px; }
+.docs-body pre { background: #0F1E3D; border-radius: var(--r-md); padding: 15px 17px;
+  overflow: auto; margin: 0 0 16px; }
+.docs-body pre code { background: none; border: none; color: #C7D5EE; font-size: 12px; line-height: 1.6; padding: 0; }
+.docs-body table { width: 100%; border-collapse: collapse; margin: 0 0 16px; font-size: 13px; }
+.docs-body th, .docs-body td { text-align: left; padding: 7px 10px;
+  border-bottom: 1px solid var(--border-2); vertical-align: top; }
+.docs-body th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
+.docs-body td { color: var(--ink-2); }
+.docs-body hr { border: none; border-top: 1px solid var(--border-2); margin: 24px 0; }
+.docs-body blockquote { margin: 0 0 16px; padding: 10px 16px; border-left: 3px solid var(--accent);
+  background: var(--surface-2); border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+@media print { .docs-nav { display: none; } .docs-layout { grid-template-columns: 1fr; }
+  .docs-body { border: none; padding: 0; box-shadow: none; } }
+
+/* ==================================================================
+   8e · LOADING
+   The first request for the whole-capture payload builds it (about ten seconds).
+   On the demo path that is guaranteed -- the replay job clears the cache and the
+   browser is redirected straight here -- so the page must say what it is doing.
+   A blank chart area for ten seconds reads as a broken page, and no caption
+   afterwards repairs that.
+   ================================================================== */
+.loading {
+  display: flex; align-items: center; gap: 14px; padding: 22px 24px;
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-sm); margin-bottom: 26px;
+}
+.loading .spinner {
+  width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--brand);
+  animation: netra-spin .9s linear infinite;
+}
+@keyframes netra-spin { to { transform: rotate(360deg); } }
+.loading b { font-size: 14.5px; display: block; }
+.loading span { font-size: 12.5px; color: var(--ink-3); }
+@media print { .loading { display: none; } }
+.skeleton {
+  height: 12px; border-radius: 99px; background: var(--surface-2);
+  animation: netra-pulse 1.4s ease-in-out infinite; margin-bottom: 10px;
+}
+@keyframes netra-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+
+/* ==================================================================
+   9 · PRINT — the A4 reports
+   The Download buttons open a page styled for A4; the browser's own print-to-PDF
+   produces the file. Real vector charts, no extra library, and nothing to install
+   on a host that cannot reach a registry.
+   ================================================================== */
+@media print {
+  @page { size: A4 portrait; margin: 13mm 11mm; }
+  :root {
+    --canvas: #fff; --surface: #fff; --surface-2: #F4F6FA;
+    --ink: #0F1E3D; --ink-2: #3F4A5F; --ink-3: #6B7688;
+    --border: #C9D3E2; --border-2: #DCE3EE;
+    --shadow-sm: none; --shadow-md: none; --shadow-lg: none;
+  }
+  html, body { background: #fff; color: #000; font-size: 10.5pt; }
+  .topbar, .strip, .no-print, .tip, .tour-ring, .tour-pop, .toast, .modal-overlay, .qdot { display: none !important; }
+  .wrap { max-width: none; padding: 0; }
+  .band { break-inside: avoid; margin-bottom: 14pt; }
+  .card, .explainer, .leadcard, .reason, .stat, .sumc, .chain { break-inside: avoid; box-shadow: none; }
+  .chart-box { height: 58mm; }
+  .chart-box.tall { height: 80mm; }
+  .hero-num { font-size: 34pt; }
+  .hero-num.sm { font-size: 24pt; }
+  .lede-sentence { font-size: 15pt; max-width: none; }
+  .dotgrid { gap: 3px; }
+  .dotgrid i { width: 8px; height: 8px; }
+  .print-head {
+    display: flex !important; align-items: baseline; gap: 14px;
+    border-bottom: 2px solid #0F1E3D; padding-bottom: 6pt; margin-bottom: 12pt;
+  }
+  .print-head b { font-size: 15pt; letter-spacing: .06em; }
+  .print-head span { font-size: 9pt; color: #6B7688; font-family: var(--mono); }
+  .print-foot {
+    display: block !important; margin-top: 12pt; border-top: 1px solid #C9D3E2;
+    padding-top: 5pt; font-size: 8pt; color: #6B7688; font-family: var(--mono);
+  }
+  a { text-decoration: none; color: inherit; }
+}
+/* Hidden on screen, revealed by the print stylesheet above. */
+.print-head, .print-foot { display: none; }

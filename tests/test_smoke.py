@@ -306,6 +306,40 @@ def test_explain_forest_accepts_the_wrapper(analysed):
     assert len(explain_forest(model, matrix[:3], FEATURE_COLUMNS)) == 3
 
 
+def test_payload_explanation_reconciles_even_when_factors_are_dropped():
+    """The payload keeps only the largest few contributions for the waterfall.
+
+    It used to drop the rest silently, so the bars did NOT add up to the score
+    printed above them -- the interface would have claimed "these parts sum to
+    the number on screen" while they did not. The remainder is now carried as an
+    explicit term, and this is the test that keeps it that way.
+    """
+    from monitoring.payload import LISTED_CONTRIBUTIONS, _explanation_block
+
+    contributions = [
+        {"name": f"f{index}", "value": float(index),
+         "contribution": 0.5 / (index + 1)}          # deliberately many small ones
+        for index in range(LISTED_CONTRIBUTIONS * 3)
+    ]
+    listed = contributions[:LISTED_CONTRIBUTIONS]
+    block = _explanation_block({
+        "method": "exact decision-path contributions (Saabas), not Shapley",
+        "base": 0.42,
+        "prediction": 0.42 + sum(item["contribution"] for item in contributions),
+        "residual": 0.0,
+        "contributions": contributions,
+    })
+
+    assert block["listed_count"] == LISTED_CONTRIBUTIONS
+    assert block["other_count"] == len(contributions) - LISTED_CONTRIBUTIONS
+    shown = sum(item["contribution"] for item in listed)
+    total = block["base"] + shown + block["other_contribution"]
+    # The rounding applied to the listed contributions is absorbed by the
+    # remainder, so this holds to well under a thousandth of a score point.
+    assert abs(total - block["prediction"]) < 1e-6, \
+        f"drawn bars must add up to the score: {total} != {block['prediction']}"
+
+
 # --------------------------------------------------------------------------
 # Drift
 # --------------------------------------------------------------------------
@@ -356,8 +390,19 @@ def test_frontend_scripts_parse():
 
 
 def test_frontend_assets_use_only_vendored_libraries():
-    html = (ROOT / "frontend" / "traffic.html").read_text(encoding="utf-8")
-    assert "vendor/vis-network.min.js" not in html or "cdn" not in html
+    """The offline requirement is a hard one: the target host is air-gapped, so a
+    single CDN reference is a page that renders unstyled and without its fonts.
+
+    Every page is checked, not one of them. A single-page version of this test is
+    how five of six pages drift out of compliance -- the reference that gets added
+    later is always in the page the test does not look at.
+    """
+    pages = sorted((ROOT / "frontend").glob("*.html"))
+    assert pages, "no pages found -- the glob is wrong, not the project"
+    for page in pages:
+        html = page.read_text(encoding="utf-8")
+        for marker in ("cdn.", "http://", "https://", "//unpkg", "//cdnjs"):
+            assert marker not in html, f"{page.name} references {marker}; offline is required"
     for vendor in ("vis-network.min.js", "chart.umd.min.js", "fonts.css"):
         assert (ROOT / "frontend" / "vendor" / vendor).exists()
 

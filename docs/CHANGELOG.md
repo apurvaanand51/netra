@@ -262,16 +262,37 @@ the product and the documents rather than in a drawer.
 
 ## 10. Interface
 
-The dashboard was rebuilt around the monitoring model rather than adapted to it:
+The interface is six pages, in the order of the argument: what this is, what we
+made of your file, what is in it, what looks wrong, where it is, and how it was
+built. Each answers one question and links to the next.
 
+- a **data-quality gate** before anything expensive happens: rows read, rows
+  usable, rows rejected and the reason for each, then "analyse this file". The
+  button after the gate runs the analysis **of the file the gate just described**
 - a **replay transport** so the batches can be walked through in order, live
 - a **plain-language layer**: every technical term either replaced with a plain
   phrase or carrying an explanation, surfaced by Explain mode
-- **progressive disclosure** — the summary first, the technical detail on demand
-- an **empty state for every panel**, so "nothing found" never looks like "not
-  loaded"
-- a **case dossier** generated from the same payload the console renders
+- **charts before prose** — the dot grid, the paired size-class bars and the
+  geography bars each make their point without a sentence being read
+- **PDF reports from the same payload the pages render**: a whole-capture report,
+  a lead report, and a one-page case dossier, all A4 and print-safe
 - a **documents page** — this file among them
+
+### The defects this pass found in the product
+
+Every one of these was caught by looking at the rendered page rather than at the
+code, and every one is now fixed with a test or a stated rule:
+
+| What it looked like | What it was |
+|---|---|
+| 60 of 85 leads had no explanation | attributions were computed for the top 25 only; the caps are gone |
+| the waterfall bars did not add up to the score above them | the payload kept the 8 largest contributions and dropped the rest silently; the remainder is now a stated term and the sum is exact |
+| "88 open leads" beside "85 flagged groups" | merged entities leave an alert row under a key that no longer exists; `open_alerts` now resolves aliases |
+| a fifth day on the chart with an invisible bar | the capture ends mid-day, so a 19-transaction tail was being presented as a day; a trailing fragment is now folded into the day before it |
+| "peaking at 22:00" on a flat profile | the busiest of 24 near-equal hours is not a peak; the share is now stated and the flatness named |
+| 533 grey squares | the payload says `critical`/`medium` and the stylesheet said `crit`/`med`; a rule matched nothing and nothing complained |
+| country bars rendered as slivers | the bar fill was an inline element with a percentage width; it laid out at zero |
+| a fix on disk that did not appear | the browser had cached the stylesheet; static files are now served `no-cache` |
 
 ---
 

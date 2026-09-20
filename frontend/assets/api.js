@@ -99,8 +99,56 @@ const ROLE_PLAIN = {
   wallet: "Ordinary wallet group",
 };
 
-const BAND_COLOUR = { critical: "#e05252", high: "#e08a52", medium: "#d9c04a", low: "#5aa96e" };
+// The theme's risk palette, read at draw time from the CSS custom properties so
+// charts cannot hold a colour the stylesheet has stopped using. The literal
+// values below are only a fallback for the milliseconds before the stylesheet
+// resolves.
+const BAND_FALLBACK = { critical: "#DC2626", high: "#DD6B20", medium: "#C77700", low: "#0E9F6E" };
 const BAND_ORDER = ["critical", "high", "medium", "low"];
+
+/** Every colour a chart needs, read from the live theme. */
+function themeTokens() {
+  const style = getComputedStyle(document.documentElement);
+  const read = (name, fallback) => (style.getPropertyValue(name) || "").trim() || fallback;
+  return {
+    ink: read("--ink", "#0F1E3D"),
+    ink2: read("--ink-2", "#3F4A5F"),
+    ink3: read("--ink-3", "#6B7688"),
+    brand: read("--brand", "#1E40AF"),
+    brand2: read("--brand-2", "#3B82F6"),
+    accent: read("--accent", "#D97706"),
+    safe: read("--safe", "#0E9F6E"),
+    med: read("--med", "#C77700"),
+    high: read("--high", "#DD6B20"),
+    crit: read("--crit", "#DC2626"),
+    border: read("--border-2", "#DBEAFE"),
+    surface: read("--surface-2", "#F1F5F9"),
+    // Canvas gridlines have to be a wash of the ink colour rather than a fixed
+    // grey, or they are invisible on one of the two themes.
+    grid: "rgba(120,130,145,0.18)",
+  };
+}
+
+/** The colour for a priority band, from the theme, with a safe fallback. */
+function bandColour(band) {
+  const key = { critical: "crit", high: "high", medium: "med", low: "safe" }[band];
+  return key ? themeTokens()[key] : BAND_FALLBACK[band] || themeTokens().ink3;
+}
+
+/** Is this entity an investigative LEAD, or a node drawn to make the graph
+ *  readable?
+ *
+ *  The producer decides this and states it in the payload, because the answer is
+ *  the difference between "85 wallet groups flagged" and "100": an IP endpoint
+ *  inherits the peak risk of the wallets it controlled, so it can carry a review
+ *  band without being a wallet group. The fallback covers a payload generated
+ *  before the flag existed -- it is the same rule, evaluated here rather than
+ *  silently reporting zero leads because a field was absent.
+ */
+function isLead(entity) {
+  if (typeof entity?.lead === "boolean") return entity.lead;
+  return entity?.kind !== "ip" && entity?.risk_band !== "low";
+}
 
 /* -------------------------------------------------------------------- format */
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => (
@@ -128,10 +176,15 @@ const flagEmoji = (code) => {
   return String.fromCodePoint(...[...String(code).toUpperCase()].map((c) => 127397 + c.charCodeAt(0)));
 };
 
-/** Wrap text in a clickable explanation when Explain mode is on. */
+/** Attach a clickable explanation dot, but only when Explain mode is on.
+ *
+ * A dot that is always present turns the interface into a field of question
+ * marks; one that appears on request keeps the reading view clean and still
+ * answers "what does that word mean?" without leaving the page.
+ */
 function annotated(text, key) {
-  return (document.body.classList.contains("explain") && GLOSSARY[key])
-    ? `<span data-explain="${key}">${text}</span>`
+  return (document.body.classList.contains("explain-on") && GLOSSARY[key])
+    ? `${text}<span class="qdot inline" data-explain="${key}" title="What does this mean?">?</span>`
     : text;
 }
 
@@ -199,28 +252,81 @@ function toggleTheme() {
 
 /* ---------------------------------------------------------- explain mode */
 function initExplain() {
+  const close = () => document.getElementById("tip")?.classList.remove("on");
+
+  // A fixed-position popover does not follow the element it describes, so a scroll
+  // leaves it pointing at nothing. Closing on scroll is the honest alternative to
+  // chasing the anchor.
+  window.addEventListener("scroll", close, true);
+  window.addEventListener("resize", close);
+
   document.addEventListener("click", (event) => {
+    const node = document.getElementById("tip");
+    if (!node) return;
+    if (event.target.closest(".tip-x")) { close(); return; }
     const target = event.target.closest("[data-explain]");
-    const pop = document.getElementById("pop");
-    if (!pop) return;
-    if (target && document.body.classList.contains("explain")) {
-      const entry = GLOSSARY[target.dataset.explain];
-      if (entry) {
-        const rect = target.getBoundingClientRect();
-        pop.innerHTML = `<b>${esc(entry[0])}</b><span>${esc(entry[1])}</span>`;
-        pop.hidden = false;
-        pop.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 356))}px`;
-        pop.style.top = `${Math.min(rect.bottom + 8, window.innerHeight - 150)}px`;
-        return;
-      }
-    }
-    pop.hidden = true;
+    if (!target || !document.body.classList.contains("explain-on")) { close(); return; }
+
+    const entry = GLOSSARY[target.dataset.explain];
+    if (!entry) return;
+    node.innerHTML = `
+      <button class="tip-x" title="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+             stroke-linecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+      <div class="th">
+        <div class="ei">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 1 1 4 2.8c-.7.3-1.1 1-1.1 1.7v.5"/>
+            <path d="M12 17h.01"/></svg></div>
+        <div><span class="tk">In plain words</span><b>${esc(entry[0])}</b></div>
+      </div>
+      <div class="analogy">${esc(entry[1])}</div>
+      ${entry[2] ? `<div class="why"><b>Why it matters:</b> ${esc(entry[2])}</div>` : ""}`;
+
+    node.classList.add("on");
+    const rect = target.getBoundingClientRect();
+    const width = node.offsetWidth || 300;
+    const height = node.offsetHeight || 170;
+    const left = Math.max(10, Math.min(rect.left + rect.width / 2 - width / 2,
+                                      window.innerWidth - width - 10));
+    // Below the term unless there is no room, in which case above it.
+    let top = rect.bottom + 10;
+    if (top + height > window.innerHeight - 10) top = Math.max(10, rect.top - height - 10);
+    node.style.left = `${left}px`;
+    node.style.top = `${top}px`;
   });
 }
 
 /* ------------------------------------------------------------ empty states */
 function emptyState(title, detail) {
   return `<div class="empty"><b>${esc(title)}</b><span>${esc(detail)}</span></div>`;
+}
+
+/* ---------------------------------------------------------------- loading */
+/** Say what the machine is doing while it does it.
+ *
+ * The first request for the whole-capture payload BUILDS it -- about ten seconds
+ * for the bundled dataset, and on the demo path that is guaranteed, because the
+ * replay job clears the cache and the browser is redirected straight to a page
+ * that needs it. A blank chart area for ten seconds reads as a broken page, and
+ * no caption afterwards repairs that impression.
+ */
+function showLoading(title, detail) {
+  const host = document.getElementById("loading");
+  if (!host) return;
+  host.className = "loading";
+  host.hidden = false;
+  host.innerHTML = `<div class="spinner"></div>
+    <div><b>${esc(title)}</b><span>${esc(detail || "")}</span></div>`;
+}
+
+function hideLoading() {
+  const host = document.getElementById("loading");
+  if (!host) return;
+  host.hidden = true;
+  host.innerHTML = "";
 }
 
 /* ------------------------------------------------------- markdown (for docs) */

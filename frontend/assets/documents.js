@@ -31,7 +31,7 @@ async function openDoc(file, node) {
     index = await api("/documents/index.json");
   } catch (error) {
     document.getElementById("docList").innerHTML =
-      `<li class="muted">No documents found on this machine.</li>`;
+      `<li style="color:var(--ink-3);border-style:dashed">No documents found on this machine.</li>`;
     return;
   }
 

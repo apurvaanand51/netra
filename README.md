@@ -20,6 +20,8 @@ internet, and how to prove it still works with the cable pulled out.
 | If you want to… | Go to |
 |---|---|
 | **Install it on a Linux machine and run it offline** | [Install & run](#install--run-on-linux) |
+| **Run it on this machine right now** | [Running it on Windows](#running-it-on-this-windows-machine-development) |
+| **Present it / see the pages and the reports** | [The six pages](#the-six-pages) |
 | Prove the offline claim to someone | [Proof it is actually offline](#proof-it-is-actually-offline) |
 | Know the commands | [Command reference](#command-reference) |
 | Fix something that broke | [Troubleshooting](#troubleshooting) |
@@ -185,6 +187,31 @@ Options:
 
 `run.bat` is the Windows equivalent, for development only. The target is Linux.
 
+Both launchers print the six page URLs and the reports when they start, so the
+list below and the running system cannot drift apart.
+
+### Running it on this Windows machine (development)
+
+The same one command, from the repository root, in a plain `cmd` or PowerShell
+window:
+
+```bat
+run.bat                  :: prepare what is missing, then serve
+run.bat --fresh          :: regenerate the dataset and retrain first
+run.bat --port 9000      :: serve elsewhere
+```
+
+`run.bat` builds `.venv` with **Python 3.10** specifically (`py -3.10 -m venv
+.venv`), checks that the pinned stack imports, and — if it does not — installs
+from `wheels/` with `--no-index` when that folder is populated, falling back to
+the online index only when it is empty. If a `venv/` folder (no dot) exists, it is
+left alone: `run.bat` uses `.venv`, so an old `venv/` from an earlier attempt can
+be deleted.
+
+Nothing else is needed: no Node, no build step, no framework to install. The
+browser loads the files that are on disk, and every vendored library is already
+in `frontend/vendor/`.
+
 ### Manual equivalent
 
 If you would rather not run a shell script — or you need to script it — this is
@@ -318,7 +345,7 @@ A paragraph in a README does not make a tool offline. These do — and every one
 of them is checked in CI on every push, because a claim that is not enforced is
 a claim that quietly stops being true.
 
-### Run these seven checks
+### Run these eight checks
 
 ```bash
 # 1. No page or stylesheet references an external resource.
@@ -350,7 +377,14 @@ curl -fsS http://localhost:8000/health
 ss -tupn | grep -i python
 #    -> only the LISTEN socket on :8000
 
-# 7. The demonstration itself: UNPLUG THE NETWORK, reload the browser.
+# 7. The printable reports render, which is what the Download buttons open.
+for report in /print/dataset /print/anomalies; do
+  curl -fsS -o /dev/null "http://localhost:8000$report" && echo "ok $report"
+done
+#    -> ok both. They are HTML, printed by the browser: no PDF library, nothing
+#       to install on a host with no package registry.
+
+# 8. The demonstration itself: UNPLUG THE NETWORK, reload the browser.
 #    -> every page keeps working, including the graph and the charts.
 ```
 
@@ -387,7 +421,7 @@ implementation.
 |---|---|
 | `python tasks.py gen` | Generate the synthetic dataset with hidden ground truth |
 | `python tasks.py train` | Train both models, measure them, write `models/` |
-| `python tasks.py replay` | Run the windowed pipeline, record history into `out/monitoring.sqlite` |
+| `python tasks.py replay` | Run the windowed pipeline, record history into `out/monitoring.sqlite`. **Replaces** the previous history |
 | `python tasks.py payload` | Build a contract payload for one window (or all) |
 | `python tasks.py drift` | Compare each batch against the training distribution (PSI + KS) |
 | `python tasks.py serve [port]` | Start the API and the dashboard |
@@ -404,7 +438,26 @@ Useful flags:
 python tasks.py gen --tx 4000 --clusters 200 --out data   # smaller dataset
 python tasks.py payload --window 2 --out out/payload.json # one window
 ./run.sh --fresh                                          # regenerate everything
+python -m monitoring.pipeline --keep-history              # append instead of replace
 ```
+
+**A replay replaces the history; it does not add to it.** Analysing a second
+dataset that way is deliberate — appending two captures would make the
+whole-capture view the sum of two unrelated dumps, with numbers that still look
+plausible. The genuinely incremental case (a new batch arriving for a capture
+already loaded) is `--keep-history`.
+
+**Where the paths live.** Every directory the server uses can be redirected by
+environment variable, which is what makes the bundled demo, the tests and a
+packaged deployment able to run from one codebase:
+
+| Variable | Default | What it moves |
+|---|---|---|
+| `NETRA_OUT_DIR` | `out/` | the state store, the payload cache |
+| `NETRA_DATA_DIR` | `data/` | the dataset and the per-batch files |
+| `NETRA_MODELS_DIR` | `models/` | the trained artifacts and the scorecard |
+| `NETRA_UPLOAD_DIR` | `uploads/` | files dropped in on the ingest page |
+| `NETRA_FRONTEND_DIR` | `frontend/` | the pages and the vendored libraries |
 
 **Reset to a clean state:** `python tasks.py clean` deletes `data/`, `models/`,
 `out/` and `uploads/` contents (keeping the `.gitkeep` sentinels). Everything is
@@ -421,6 +474,7 @@ code.
 | `ModuleNotFoundError: No module named 'numpy._core'` | The model was pickled under numpy **2.x** and is being loaded by numpy **1.x** (or vice versa). | **Do not debug the pickle.** Reinstall the pinned stack on Python 3.10 and retrain: `python tasks.py train`. See `docs/COLAB_RETRAIN.md` for the full explanation. |
 | `ERROR: Could not find a version that satisfies the requirement numpy==1.23.5` | You are on Python 3.11+ — the pins have no wheels for it. | Use Python 3.10. On Ubuntu 22.04 it is the default `python3`. Otherwise the Docker path pins it for you. |
 | `ensurepip is not available` / `venv` creation fails | `python3.10-venv` is not installed. | `sudo apt install python3.10-venv` (on the connected machine, or from your OS image/`.deb`). |
+| Python is 3.12+/3.14 and you cannot install the stack | Wrong interpreter, as above. | `python3.10 -m venv .venv` explicitly, or use Docker. |
 | `pip` hangs, or fails with a DNS/timeout error during `./run.sh` | `wheels/` is empty, so the script fell through to the online branch. | Populate it per [A1](#a1-on-the-connected-machine-build-and-train), or use the Docker image. Confirm with `ls -A wheels`. |
 | `ERROR: No matching distribution found` while installing from `wheels/` | The wheelhouse was built for a different platform or Python version. | Rebuild it with the cross-platform flags in [A2](#a2-preparing-on-windowsmacos-for-a-linux-target). |
 | `docker compose up` tries to build and fails at pip | Compose saw the `build:` section and rebuilt instead of using the loaded image. | `docker compose up --no-build -d`. |
@@ -428,8 +482,10 @@ code.
 | Dashboard loads but graphs and charts are blank | A vendored asset is missing (a CDN load would fail the same silent way). | `ls frontend/vendor` — expect `vis-network.min.js`, `chart.umd.min.js`, `fonts.css`, `fonts/`. Re-extract the bundle; do not "fix" it by adding a CDN link, which CI rejects anyway. |
 | `Address already in use` / port 8000 taken | Another process holds 8000. | `./run.sh --port 9000`. |
 | The numbers on screen look old / the server "did nothing" | A stale process is serving cached per-window payloads. This has happened: a failed restart left an old process serving sixteen-minute-old analytics. | `curl -X POST http://localhost:8000/reload` — it re-reads state and reports how old the data is. Every payload also prints its own timestamp. |
-| `SMOKE FAILED` | Something is genuinely broken. | Stop and fix it before anything else. The smoke test uses a separate store (`out/smoke.sqlite`) and data dir, so it cannot damage real history. |
-| Python is 3.12+/3.14 and you cannot install the stack | Wrong interpreter, as above. | `python3.10 -m venv .venv` explicitly, or use Docker. |
+| `SMOKE FAILED` | Something is genuinely broken. | Stop and fix it before anything else. The test runs the whole application against a **throwaway directory** (`NETRA_OUT_DIR` is redirected to a temp dir before the app is imported), so it cannot touch the store the demonstration is using. It used to: the test posts to `/analyze`, and a full analysis replaces the history — one run mid-session left the pages reporting different lead counts depending on when they were loaded. |
+| Two pages quote different lead counts | One of them is reading a payload built before the last analysis. | `curl -X POST http://localhost:8000/reload` drops the cached payloads; the next request rebuilds them from the current store. The strip at the bottom of every page prints the batch it is showing and when the payload was generated. |
+| You edited a stylesheet or a script and the page did not change | The browser had the old file cached. | Static files are served `Cache-Control: no-cache`, so a normal reload is enough — the browser revalidates and gets a 304 with no body. If you were serving the files with something else, hard-refresh (`Ctrl+F5`). This cost us an hour: a correct fix on disk, still-cached in the browser, and the page still showing 533 grey squares. |
+| You edited a **`.py`** file and the running server behaves as before | uvicorn is not started with `--reload`, so the already-imported module is still in memory. Saving a file does not change a running process. | Stop it and restart (`Ctrl+C`, then `run.bat`). This caught us twice in one session: a fix to the batch splitter was on disk, tested with pytest, and had no effect on the server until it was restarted — so the pages kept showing a "day" that held 19 transactions. |
 
 ---
 
@@ -459,7 +515,7 @@ one machine with no network, because that is what the problem statement demands.
 
 ## Two things it does that are easy to miss
 
-**1. It reports what it examined, not only what it found.** The Traffic page
+**1. It reports what it examined, not only what it found.** The Dataset page
 partitions **every** wallet group, not just the suspects: on the shipped run
 roughly seven in eight groups are ordinary activity that fired no structural
 detector, the largest actors by value are lawful services, and the groups raised
@@ -514,21 +570,64 @@ successes is advocacy:
 
 Open **http://localhost:8000**.
 
+The order is the order of the argument. Each page answers one question and links to
+the next, each is its own URL so a presenter can jump straight to it, and each leans
+on charts rather than prose — a caption line under each visual, not a paragraph.
+
 | Page | The question it answers |
 |---|---|
-| **Ingest** `/` | What did we make of the file you gave us? |
-| **Traffic** `/traffic.html` | What is in this data? — the whole capture |
-| **Investigate** `/investigate.html` | Which groups need attention, and why? |
-| **Monitoring** `/monitoring.html` | What changed since the last batch? |
-| **Method** `/model.html` | How well does it work, and what is it *not*? |
+| **Cover** `/` | What is this, whose is it, and what does it claim? |
+| **Ingest** `/ingest.html` | What did we make of the file you gave us? |
+| **Dataset** `/dataset.html` | What is in this data? — the whole capture |
+| **Anomalies** `/anomalies.html` | What looks wrong, in plain words, and why? |
+| **Dashboard** `/dashboard.html` | Where is it, one batch at a time? |
 | **Documents** `/documents.html` | How it was built, including the mistakes |
 
-`/docs` is the generated API console. `/report/{entity}` is a printable case dossier.
+Every page that shows a body of evidence also offers it as a **PDF**, rendered for
+A4 by the server and saved with the browser's own print-to-PDF — vector text and
+vector charts, no PDF library, and nothing to install on a host with no package
+registry.
+
+| Report | What it contains |
+|---|---|
+| `/print/dataset` | The whole capture: the summary sentence, every chart, the examined-vs-flagged grid, the method |
+| `/print/anomalies` | Every lead with its priority, the top lead decomposed in full, the plain-language glossary, the limits |
+| `/report/{entity}` | A one-page case dossier: the lead, its evidence, its money trail, and what the model is *not* |
+
+### The flow, as a demo runs it
+
+1. **Ingest** — drop a file, or press *Run the built-in dataset*.
+2. **The gate** — rows read, usable, rejected, and the reason for each. Nothing
+   expensive has happened yet. The button under it says *Analyse this file*, and
+   it analyses the file the gate just described — including an uploaded one.
+3. **The run** — four named stages and the pipeline's own log, then the page
+   moves on by itself.
+4. **Dataset** — the whole capture in charts: 27,860 transactions, 533 wallet
+   groups, one square per group, and the flagged minority standing out from the
+   grey mass (77 on the shipped dataset). The page prints the count it found, and
+   the count is a function of how the batches were split — fold the last partial
+   day differently and it moves by a few, which is why every page names the batch
+   it is showing rather than assuming.
+5. **Anomalies** — pick a lead; the page explains the pattern in plain words,
+   shows the factors that produced the score and makes them add up, then follows
+   the money.
+6. **Dashboard** — the operation map, with the batches on a transport you can
+   play through in order.
+7. **PDF** — the *Download* button on any of those pages opens an A4 report;
+   the browser's print-to-PDF produces the file.
+
+A replay of a **different** dataset starts from an empty history, so two captures
+cannot end up in one analysis. Re-running the built-in dataset keeps its history.
+
+
+`/docs` is the generated API console.
 
 The API surface, for anyone wiring this into something larger:
 `/health` · `/windows` · `/results?window=n` · `/events?window=n` ·
-`/alerts?status=…` · `POST /alerts/{entity}/status` · `POST /upload` ·
-`POST /analyze` · `/job/{id}` · `/metrics` · `/report/{entity}` · `POST /reload`.
+`/alerts?status=…` · `POST /alerts/{entity}/status` · `/glossary` ·
+`/ingest-report` · `POST /upload` ·
+`POST /analyze` · `/job/{id}` · `/metrics` · `/print/dataset` · `/print/anomalies` ·
+`/report/{entity}` · `POST /reload`.
 
 ## What the models achieve
 
@@ -557,7 +656,7 @@ Deleting every hand-written detector does not move AUC. The signal is in the
 measured traffic, not in our own rules echoed back.
 
 Training and measurement take about 22 seconds on the shipped dataset. Every
-number above is in `models/metrics.json` — the Method page renders that file, so
+number above is in `models/metrics.json` — the printable reports print that file, so
 the scorecard and the artifacts cannot drift apart.
 
 ## The four required AI/ML areas
@@ -636,8 +735,9 @@ netra/
 ├─ correlation/                  network ⇄ blockchain fusion
 ├─ ml/                           clustering, anomaly, patterns, risk, drift, evaluation
 ├─ monitoring/                   state store, identity pinning, events, corpus analysis
-├─ backend/                      FastAPI app, job queue, case dossier
+├─ backend/                      FastAPI app, job queue, the three A4 reports
 ├─ frontend/                     six pages + vendored offline libraries
+│  └─ assets/theme.css           the design system, extracted whole
 ├─ models/                       trained artifacts + the measured scorecard
 ├─ tests/                        pytest suite, contract validator, API smoke test
 ├─ docs/                         the review, the model card, the changelog, the retrain guide

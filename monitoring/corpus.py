@@ -102,6 +102,182 @@ def _transaction_values(frame: pd.DataFrame) -> np.ndarray:
     ], dtype=float)
 
 
+def _daily_and_hourly(frame: pd.DataFrame, values: np.ndarray) -> tuple[list[dict], list[dict], dict]:
+    """Volume by calendar day, and by hour of day.
+
+    Two different questions that look similar and are not:
+      * by DAY   -- "what happened on each day of the capture?" The bar chart a
+                    reader asks for when they want the shape of the period.
+      * by HOUR  -- "when in the day does activity happen?" That is a question
+                    about behaviour, and it is answerable across ALL days at
+                    once, which is why the hours are summed rather than averaged.
+
+    Both count transactions and sum value, because the two do not move together:
+    a day can be busy and small, or quiet and enormous.
+    """
+    if frame.empty:
+        return [], [], {}
+
+    # reset_index so the positional `values` array lines up with the frame.
+    work = pd.DataFrame({
+        "day": frame["timestamp"].dt.date.to_numpy(),
+        "hour": frame["timestamp"].dt.hour.to_numpy(),
+        "value": values,
+    })
+
+    by_day = work.groupby("day").agg(
+        transactions=("value", "size"), value_btc=("value", "sum"),
+    )
+    daily = [
+        {
+            "day": str(day),
+            "transactions": int(row.transactions),
+            "value_btc": round(float(row.value_btc), 8),
+        }
+        for day, row in by_day.iterrows()
+    ]
+
+    # A trailing fragment is folded into the day before it, by the SAME rule the
+    # replay uses to split batches (monitoring.pipeline.split_into_windows).
+    #
+    # WHY THE SAME RULE, AND NOT A SECOND ONE
+    # ---------------------------------------
+    # The capture's last calendar day held 19 transactions against ~7,000 in each
+    # of the days before it. Left alone, the dataset page said "over 5 days" with
+    # a fifth bar too small to see, while the dashboard offered 4 batches -- one
+    # product, two answers to "how many days is this", and a reader with no way
+    # to tell which was the mistake. The days counted here are now the same days
+    # the pipeline processes.
+    #
+    # The transactions are kept and the label names both days: the merge is a
+    # statement about the boundary, not a claim that the traffic did not happen.
+    if len(daily) >= 3 and daily[-1]["transactions"] < 0.10 * sorted(
+        row["transactions"] for row in daily[:-1]
+    )[len(daily[:-1]) // 2]:
+        previous = daily[-2]
+        fragment = daily.pop()
+        previous["day"] = f"{previous['day']}..{fragment['day'][5:]}"
+        previous["transactions"] += fragment["transactions"]
+        previous["value_btc"] = round(previous["value_btc"] + fragment["value_btc"], 8)
+
+    by_hour = work.groupby("hour").agg(
+        transactions=("value", "size"), value_btc=("value", "sum"),
+    )
+    # Every hour of the day is present, including the quiet ones. A chart that
+    # silently omits 03:00 because nothing happened then misrepresents the shape
+    # of the day.
+    hourly = [
+        {
+            "hour": hour,
+            "transactions": int(by_hour["transactions"].get(hour, 0)),
+            "value_btc": round(float(by_hour["value_btc"].get(hour, 0.0)), 8),
+        }
+        for hour in range(24)
+    ]
+
+    peak = {
+        "hour": int(by_hour["transactions"].idxmax()) if len(by_hour) else 0,
+        "day": str(by_day["transactions"].idxmax()) if len(by_day) else None,
+        "transactions": int(by_hour["transactions"].max()) if len(by_hour) else 0,
+    }
+    return daily, hourly, peak
+
+
+def summary_sentence(corpus: dict, behaviour: dict) -> str:
+    """One sentence describing the capture, built from the measured numbers.
+
+    Generated here rather than written by hand in the interface, because it
+    appears on the dataset page, in the printed report and in the case dossier --
+    and three hand-written copies of one claim is three chances to disagree.
+
+    It is also the sentence a presenter reads out loud, so it is a sentence
+    rather than a list of fields, and it ends on the flagged share because that
+    is the honest framing: we examined everything, and this is the part that
+    matters.
+
+    TWO THINGS IT REFUSES TO SAY WITHOUT QUALIFICATION
+    --------------------------------------------------
+    * "N days" with no comment when the last day is a fragment. The capture ends
+      mid-day, so the final bucket held 19 transactions against ~7,000 in each
+      full day. The chart draws five bars, one of which is invisible, and the
+      obvious reading is "did the fifth day fail?" -- so the sentence says what
+      the fifth day is instead of leaving the reader to guess.
+    * "peaking at HH:00" when the hourly profile is nearly flat. A peak is only a
+      finding if there is a slope under it; on a uniform capture the busiest hour
+      is the largest of twenty-four nearly equal numbers, and calling it a peak
+      claims a rhythm the data does not have. The busiest hour is therefore
+      always reported WITH its share, and the sentence says plainly when the
+      profile is flat.
+
+    Takes `behaviour` as well as `corpus` because the flagged share of value is
+    computed there, and passing it in beats recomputing it in two places.
+    """
+    daily = corpus.get("daily") or []
+    days = len(daily)
+    peak = (corpus.get("peak") or {}).get("hour")
+    coverage = corpus.get("coverage") or {}
+
+    opening = f"{corpus.get('transactions', 0):,} transactions"
+    if days:
+        opening += f" over {days} day{'s' if days != 1 else ''}"
+    opening += "."
+
+    flagged = coverage.get("entities_flagged")
+    if not flagged:
+        return opening
+    value_share = behaviour.get("value_share_of_flagged")
+    tail = f"{flagged:,} wallet groups were raised for review"
+    if value_share is not None:
+        tail += f", carrying {value_share:.0%} of all value moved"
+    return " ".join([opening, tail + "."])
+
+
+def summary_notes(corpus: dict) -> list[str]:
+    """The qualifications that stop the headline from being read wrongly.
+
+    Kept separate from `summary_sentence` and rendered at body size rather than
+    as part of the headline. That is a presentation decision with a reason: the
+    headline is the line a presenter reads out loud, and a headline that has to
+    be read in full before it is true is a headline that will be quoted without
+    its second half.
+    """
+    notes: list[str] = []
+    daily = corpus.get("daily") or []
+
+    # A final bucket under half the typical day is a fragment, not a day. The
+    # chart draws it either way, so the note explains the bar that looks broken.
+    if len(daily) >= 3:
+        counts = sorted(row.get("transactions", 0) for row in daily[:-1])
+        typical = counts[len(counts) // 2] if counts else 0
+        last = daily[-1].get("transactions", 0)
+        if typical and last < typical * 0.5:
+            notes.append(
+                f"The final day is a fragment — {last:,} transactions against "
+                f"{typical:,} in a full day — so it is drawn but is not comparable."
+            )
+
+    hourly = corpus.get("hourly") or []
+    peak = (corpus.get("peak") or {}).get("hour")
+    busiest = max((row.get("transactions", 0) for row in hourly), default=0)
+    total_hourly = sum(row.get("transactions", 0) for row in hourly)
+    if peak is not None and busiest and total_hourly:
+        share = busiest / total_hourly
+        # A flat 24-hour split is 4.2% an hour. Within a fifth of that, the
+        # busiest hour is noise, and calling it a peak claims a rhythm the data
+        # does not have.
+        if share <= 0.042 * 1.2:
+            notes.append(
+                f"Activity is close to uniform across the day: the busiest hour, "
+                f"{peak:02d}:00, holds only {share:.1%} of it — the largest of "
+                "twenty-four similar hours rather than a pattern."
+            )
+        else:
+            notes.append(
+                f"The busiest hour, {peak:02d}:00, holds {share:.1%} of the traffic."
+            )
+    return notes
+
+
 def corpus_statistics(
     frame: pd.DataFrame,
     corr: Any,
@@ -114,6 +290,7 @@ def corpus_statistics(
 ) -> dict[str, Any]:
     """Descriptive statistics of everything ingested, plus coverage of the scoring."""
     values = _transaction_values(frame)
+    daily, hourly, peak = _daily_and_hourly(frame, values)
     total_value = float(values.sum()) if len(values) else 0.0
 
     # ---- value distribution ----
@@ -211,6 +388,9 @@ def corpus_statistics(
         "span_end": str(spans.max()) if len(spans) else None,
         "value_percentiles": percentiles,
         "size_classes": size_rows,
+        "daily": daily,
+        "hourly": hourly,
+        "peak": peak,
         "top_entities": top_entities,
         "countries": countries,
         "coverage": {

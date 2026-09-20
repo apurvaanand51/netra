@@ -1,41 +1,55 @@
-<!doctype html>
-<html lang="en" data-theme="dark">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NETRA — documents</title>
-<link rel="stylesheet" href="vendor/fonts.css">
-<link rel="stylesheet" href="assets/app.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NETRA — how it was built</title>
+<link href="vendor/fonts.css" rel="stylesheet">
+<link href="assets/theme.css" rel="stylesheet">
+<link href="assets/theme-additions.css" rel="stylesheet">
 </head>
 <body>
+<div id="app">
 
-<header class="topbar" id="topbar"></header>
+  <div id="topbar"></div>
 
-<main class="page">
-  <div class="pageHead">
-    <h1>How it was built</h1>
-    <p>
-      The project's own working documents, served from this machine. They include the review that reshaped the
-      project, the full model card, and the defects we found and reported against ourselves — the ones that make
-      the measured figures worth reading.
-    </p>
-  </div>
+  <main class="wrap" style="max-width:1280px">
 
-  <div class="docs">
-    <nav class="docsNav">
-      <h2>Documents</h2>
-      <ul id="docList"></ul>
-      <p class="muted small" style="margin-top:14px">
-        Readable offline. No external requests, no fonts or scripts fetched at runtime.
+    <section class="band">
+      <div class="eyebrow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5V6a2 2 0 0 1 2-2h11l3 3v12.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/>
+          <path d="M8 8h7"/><path d="M8 12h7"/><path d="M8 16h4"/></svg>
+        The written record
+      </div>
+      <h2 style="font-size:30px;letter-spacing:-.02em;margin-bottom:10px">How it was built</h2>
+      <p class="cap" style="font-size:15px;max-width:80ch">
+        The project's own working documents, served from this machine. They include the
+        review that reshaped the project, the full model card, and the defects we found and
+        reported against ourselves — the ones that make the measured figures worth reading.
       </p>
-    </nav>
-    <article class="docsBody" id="docBody">
-      <div class="empty"><b>Pick a document.</b><span>Everything is readable offline.</span></div>
-    </article>
-  </div>
-</main>
+    </section>
 
-<footer class="strip" id="strip"></footer>
+    <div class="docs-layout">
+      <nav class="docs-nav">
+        <h3 style="font-size:12px;font-weight:700;color:var(--ink-3);text-transform:uppercase;
+                   letter-spacing:.1em;margin-bottom:12px">Documents</h3>
+        <ul id="docList"></ul>
+        <p class="mono" style="font-size:11px;color:var(--ink-3);margin-top:14px;line-height:1.6">
+          Readable offline · no external requests · nothing fetched at runtime
+        </p>
+      </nav>
+
+      <article class="docs-body" id="docBody">
+        <div style="color:var(--ink-3);font-size:14px">Pick a document on the left.</div>
+      </article>
+    </div>
+
+  </main>
+
+  <div id="strip"></div>
+</div>
 
 <script src="assets/api.js"></script>
 <script src="assets/nav.js"></script>

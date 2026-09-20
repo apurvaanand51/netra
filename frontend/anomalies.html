@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NETRA — what looks wrong</title>
+<link href="vendor/fonts.css" rel="stylesheet">
+<link href="assets/theme.css" rel="stylesheet">
+<link href="assets/theme-additions.css" rel="stylesheet">
+</head>
+<body>
+<div id="app">
+
+  <div id="topbar"></div>
+
+  <main class="wrap">
+
+    <div id="loading" hidden></div>
+
+    <section class="band">
+      <div class="eyebrow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 9v4"/><path d="M12 17h.01"/>
+          <path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>
+        </svg>
+        Step 3 of 4 · the leads
+      </div>
+      <h2 style="font-size:34px;letter-spacing:-.02em;margin-bottom:11px">
+        What looks wrong, and why
+      </h2>
+      <p class="cap" style="font-size:16px;max-width:78ch">
+        Every wallet group was scored. These are the ones that came out on top, most
+        serious first. Pick one and the page explains it in plain words, shows the
+        factors that produced its number, and follows where its money went.
+      </p>
+    </section>
+
+    <!-- The leads as cards rather than a table. A table forces the reader to
+         compare columns; a card lets them pick one and move on, which is what
+         actually happens in a review meeting. -->
+    <section class="band">
+      <div class="leadrow" id="leads"></div>
+    </section>
+
+    <section class="band" id="detail">
+      <div class="card">
+        <div class="chd">
+          <div class="ci">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="3"/>
+              <path d="M9 9h6v6H9z"/></svg>
+          </div>
+          <div class="ct"><b id="leadTitle">—</b><span id="leadSub">—</span></div>
+          <div style="margin-left:auto;display:flex;gap:9px" class="no-print">
+            <a class="btn btn-ghost" id="caseBtn" href="#" target="_blank" rel="noopener"
+               style="padding:9px 15px;font-size:13.5px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>
+              Case report (PDF)</a>
+            <a class="btn btn-ghost" id="graphBtn" href="dashboard.html"
+               style="padding:9px 15px;font-size:13.5px">Open in dashboard</a>
+          </div>
+        </div>
+
+        <div class="hero-row" id="leadStats" style="grid-template-columns:repeat(4,1fr)"></div>
+        <div class="explainers" id="leadReasons" style="margin-top:16px"></div>
+      </div>
+    </section>
+
+    <!-- 1 ------------------------------------------------ in plain words -->
+    <section class="band">
+      <h2>1 · In plain words</h2>
+      <p class="cap">What each kind of unusual behaviour <i>is</i>, and why it is worth
+        looking at. The highlighted ones are the patterns the selected lead matches.</p>
+      <div class="explainers" id="explainers"></div>
+    </section>
+
+    <!-- 2 --------------------------------------------------- the evidence -->
+    <section class="band">
+      <h2>2 · The evidence</h2>
+      <p class="cap">Every fact about this wallet, and how far it pushed the score up or
+        down. The parts add up to the number on screen — that is the point of drawing
+        it this way.</p>
+      <div class="two-col" style="grid-template-columns:1.45fr 1fr">
+        <div class="card">
+          <div class="chd"><div class="ci">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20v-3"/>
+            </svg></div>
+            <div class="ct"><b>What pushed the score</b>
+              <span id="waterfallSub">right argues for, left argues against</span></div></div>
+          <div class="shap" id="waterfall"></div>
+          <div class="shap-scale"><span>argues against</span><span>argues for</span></div>
+          <div class="reconcile" id="reconcile"></div>
+        </div>
+        <div class="card">
+          <div class="chd"><div class="ci">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg></div>
+            <div class="ct"><b>Findings</b><span>including anything that argues the
+              other way</span></div></div>
+          <div id="reasons"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3 ------------------------------------------------------ the chain -->
+    <section class="band">
+      <h2>3 · The chain</h2>
+      <p class="cap" id="chainCap">Where this wallet's money went, following the largest
+        flows. A trail is an allocation model, not an observation — the estimate marker
+        is part of the finding.</p>
+      <div class="card">
+        <div class="chd"><div class="ci">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/>
+            <path d="M7.2 10.9l9.6-3.8"/><path d="M7.2 13.1l9.6 3.8"/></svg></div>
+          <div class="ct"><b>Money trail</b><span id="chainSub">—</span></div>
+          <span class="est-tag" style="margin-left:auto">≈ estimate</span></div>
+        <div class="chain" id="chain"></div>
+        <div id="chainSinks" style="margin-top:6px"></div>
+      </div>
+    </section>
+
+    <section class="band" id="driftBand" hidden>
+      <div class="card" style="border-left:4px solid var(--med)">
+        <div class="chd"><div class="ci" style="color:var(--accent);background:var(--med-bg)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 9v4"/><path d="M12 17h.01"/>
+            <path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>
+          </svg></div>
+          <div class="ct"><b>This data is outside what the model was trained on</b>
+            <span id="driftSub"></span></div></div>
+        <div id="driftList" style="display:flex;flex-wrap:wrap;gap:7px"></div>
+        <p style="font-size:12.5px;color:var(--ink-2);margin-top:14px">
+          The scores above are still the model's output, but its measured accuracy does not
+          transfer to a distribution it has not seen. Treat the ranking as a starting
+          point for review rather than as a calibrated probability.
+        </p>
+      </div>
+    </section>
+
+    <section class="band cta-row">
+      <a class="btn btn-primary" id="reportBtn" href="/print/anomalies" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>
+        Download anomaly report (PDF)
+      </a>
+      <a class="btn btn-ghost" href="dashboard.html">
+        Open the dashboard
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+      </a>
+      <span class="mono" style="font-size:12px;color:var(--ink-3)" id="anomalyNote"></span>
+    </section>
+
+  </main>
+
+  <div id="strip"></div>
+</div>
+
+<script src="assets/api.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/anomalies.js"></script>
+</body>
+</html>

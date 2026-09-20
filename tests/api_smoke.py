@@ -18,16 +18,46 @@ Run:
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import sys
+import tempfile
 import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+# POINT THE APPLICATION AT A SCRATCH DIRECTORY BEFORE IMPORTING IT.
+#
+# This test exercises `POST /analyze`, and a full analysis REPLACES the stored
+# state. Run against the real `out/`, it deleted the demonstration's history and
+# rebuilt it a different size half way through a session -- the pages then
+# disagreed with the cover and one page rendered empty while the store was being
+# rewritten. A test must not be able to destroy what it is testing, so the whole
+# application is redirected at a throwaway directory for the duration.
+_SCRATCH = Path(tempfile.mkdtemp(prefix="netra-smoke-"))
+os.environ.setdefault("NETRA_OUT_DIR", str(_SCRATCH / "out"))
+os.environ.setdefault("NETRA_UPLOAD_DIR", str(_SCRATCH / "uploads"))
+(_SCRATCH / "out").mkdir(parents=True, exist_ok=True)
+(_SCRATCH / "uploads").mkdir(parents=True, exist_ok=True)
+
+# The seeded state every endpoint is checked against, COPIED into the scratch
+# directory rather than referenced, so the scratch store is a complete and
+# independent fixture.
+#
+# Two sources, in order: the throwaway store `tasks.py smoke` builds, then the
+# real one a developer or CI has just replayed. The copy is the point -- the test
+# runs `POST /analyze`, and a full analysis replaces the history, so pointing the
+# application at the ORIGINAL of whichever store it borrowed would destroy it.
+for candidate in (ROOT / "out" / "smoke.sqlite", ROOT / "out" / "monitoring.sqlite"):
+    if candidate.exists():
+        shutil.copyfile(candidate, Path(os.environ["NETRA_OUT_DIR"]) / "monitoring.sqlite")
+        break
+
 from fastapi.testclient import TestClient  # noqa: E402
 
-from backend.main import app, jobs  # noqa: E402
+from backend.main import STORE_PATH, app, jobs  # noqa: E402
 from tests.validate_contract import validate_document  # noqa: E402
 
 PASSED: list[str] = []
@@ -151,13 +181,32 @@ def main() -> int:
         response = client.post("/analyze", json={"mode": "replay"})
         check("POST /analyze -> 202", response.status_code == 202, response.text[:200])
         job_id = response.json()["job_id"]
-        time.sleep(3)
+        check("job returns a pollable id", bool(job_id))
+
+        # The immediate poll proves the endpoint is asynchronous rather than
+        # blocking the request until the work is finished.
+        time.sleep(2)
         response = client.get(f"/job/{job_id}")
         check("GET /job/{id} -> 200", response.status_code == 200)
         job = response.json()
         check("job is running or already done", job["status"] in ("running", "done", "error"),
               job.get("error") or "")
         check("job produces log lines", len(job["log"]) > 0)
+
+        # THEN WAIT FOR IT. An analysis REPLACES the stored state, so asserting on
+        # that state while the job is still running tests a half-built store -- it
+        # made this file report a missing case dossier that had simply not been
+        # written yet. Everything below depends on the run having finished.
+        deadline = time.time() + 240
+        while time.time() < deadline:
+            job = client.get(f"/job/{job_id}").json()
+            if job["status"] in ("done", "error"):
+                break
+            time.sleep(2)
+        check("the analysis finishes", job["status"] == "done",
+              job.get("error") or f"status={job['status']}")
+        check("the finished job prepared the whole-capture view",
+              any("whole-capture" in line for line in job["log"]))
         response = client.get("/job/does-not-exist")
         check("unknown job -> 404", response.status_code == 404)
 
@@ -167,13 +216,20 @@ def main() -> int:
         check("metrics report a training mode",
               response.json().get("training_mode") is not None)
 
-        lead = payload["alerts"][0]["entity"]
+        # Re-fetch AFTER the analysis. `payload` was read before the job ran, and a
+        # full analysis REPLACES the stored state -- so a lead taken from the old
+        # payload can name an entity the new analysis does not contain, and this
+        # check then fails on a fixture that no longer exists rather than on a real
+        # defect.
+        refreshed = client.get("/results?window=all").json()
+        lead = refreshed["alerts"][0]["entity"]
         response = client.get(f"/report/{lead}")
         check("GET /report/{entity} -> 200", response.status_code == 200, response.text[:200])
         body = response.text
-        check("dossier states the fund-trace caveat", "Estimate, not a fact" in body
-              or "not a fact" in body.lower())
-        check("dossier states what the model is not", "not a verdict" in body)
+        check("dossier states the fund-trace caveat",
+              "Estimate, not an observation" in body or "Estimate, not a fact" in body)
+        check("dossier states what the model is not",
+              "not a finding of guilt" in body or "not a verdict" in body)
         check("dossier includes the explanation method",
               "decision-path" in body or "TreeSHAP" in body)
         response = client.get("/report/NOPE-1234")
@@ -184,13 +240,17 @@ def main() -> int:
         check("reload reports cleared caches", "cleared_caches" in response.json())
 
         print("\n=== the site ===")
+        # The flow, in the order of the argument: here is the data, here is what
+        # is in it, here is what looks wrong and why, here is the whole picture.
+        # Each is its own document with its own URL, so a presenter can jump
+        # straight to one and a browser can print it.
         pages = {
-            "/": "read the traffic",
-            "/index.html": "read the traffic",
-            "/traffic.html": "everything the tool read",
-            "/investigate.html": "Which groups need attention",
-            "/monitoring.html": "What changed, and when",
-            "/model.html": "How well does it work",
+            "/": "AI-Powered Monitoring",
+            "/index.html": "AI-Powered Monitoring",
+            "/ingest.html": "Give me the data",
+            "/dataset.html": "What a day looks like",
+            "/anomalies.html": "What looks wrong, and why",
+            "/dashboard.html": "operational dashboard",
             "/documents.html": "How it was built",
         }
         for path, marker in pages.items():
@@ -199,9 +259,10 @@ def main() -> int:
             check(f"{path} is its own page", marker in response.text)
 
         assets = [
-            "assets/app.css", "assets/api.js", "assets/nav.js", "assets/index.js",
-            "assets/traffic.js", "assets/investigate.js", "assets/monitoring.js",
-            "assets/model.js", "assets/documents.js",
+            "assets/theme.css", "assets/theme-additions.css", "assets/api.js",
+            "assets/nav.js", "assets/cover.js", "assets/ingest.js",
+            "assets/dataset.js", "assets/anomalies.js", "assets/dashboard.js",
+            "assets/documents.js",
             "vendor/vis-network.min.js", "vendor/chart.umd.min.js", "vendor/fonts.css",
         ]
         for asset in assets:

@@ -45,7 +45,12 @@ from ml.features import FEATURE_COLUMNS, build_feature_table, feature_matrix
 from ml.graph import analyse_graph, sink_entities, trace_funds
 from ml.patterns import all_structural_features
 from ml.risk import FEATURE_LABELS, RiskModel, band_for
-from monitoring.corpus import behaviour_composition, corpus_statistics
+from monitoring.corpus import (
+    behaviour_composition,
+    corpus_statistics,
+    summary_notes,
+    summary_sentence,
+)
 from monitoring.store import MonitoringStore
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -59,6 +64,10 @@ MAX_CONTROL_EDGES = 60
 # traces, timelines). Both cost real time, and neither is worth computing for an
 # entity nobody will open.
 EXPLAIN_FLOOR = 50
+# Leads at or above the floor get the expensive treatment: an attribution and a
+# fund trail. The cap exists only so a pathological dataset cannot make the
+# payload builder allocate without bound; it is not a presentation choice.
+LEAD_CAP = 600
 
 
 def _iso(value: Any) -> str:
@@ -121,6 +130,42 @@ def _typologies(structural: dict[str, Any]) -> list[str]:
     if structural.get("country_count", 0.0) >= 2:
         found.append("cross_border_control")
     return found
+
+
+# How many factors the interface draws. A waterfall with twenty-eight bars cannot
+# be read, and a truncated one that silently drops the remainder is worse than
+# either -- the printed parts would not add up to the score printed beside them.
+# So the dropped factors are summed into one stated term.
+LISTED_CONTRIBUTIONS = 8
+
+
+def _explanation_block(explanation: dict[str, Any]) -> dict[str, Any]:
+    """The attribution, with the unlisted factors carried explicitly.
+
+    WHY THE REMAINDER IS COMPUTED RATHER THAN SUMMED
+    ------------------------------------------------
+    The named contributions are rounded for transport. Subtracting them from the
+    prediction gives a remainder that absorbs that rounding, so
+    `base + listed + other == prediction` holds exactly in the payload instead of
+    "almost", which is the difference between an explanation an analyst can check
+    and one they have to take on trust.
+    """
+    contributions = explanation.get("contributions") or []
+    listed = contributions[:LISTED_CONTRIBUTIONS]
+    other = contributions[LISTED_CONTRIBUTIONS:]
+    other_total = (
+        explanation["prediction"] - explanation["base"]
+        - sum(item["contribution"] for item in listed)
+    )
+    return {
+        "method": explanation["method"],
+        "base": round(explanation["base"], 6),
+        "prediction": round(explanation["prediction"], 6),
+        "residual": round(explanation["residual"], 9),
+        "listed_count": len(listed),
+        "other_count": len(other),
+        "other_contribution": round(other_total, 6),
+    }
 
 
 def _reasons(structural: dict[str, Any], entity: dict[str, Any], changes: list[dict]) -> list[dict]:
@@ -274,6 +319,10 @@ def _endpoint_entities(
             ),
             "risk": int(peak),
             "risk_band": band_for(int(peak)),
+            # An endpoint is a node, never a lead. It inherits the peak risk of the
+            # wallets it controlled so the graph can show which infrastructure
+            # matters, but it is not a wallet group and must not be counted as one.
+            "lead": False,
             "geo": sorted({code for code in controls.loc[controls["ip"] == ip, "country"] if code}),
             "value_btc": 0.0,
             "tx_count": int(row["observations"]),
@@ -328,7 +377,7 @@ def build_window_payload(
     store: MonitoringStore,
     window_id: int | None,
     models_dir: Path | str | None = None,
-    top_n: int = 25,
+    lead_cap: int = LEAD_CAP,
     explain_floor: int = EXPLAIN_FLOOR,
 ) -> dict[str, Any]:
     """Assemble the contract payload for one window, or for every batch.
@@ -420,7 +469,17 @@ def build_window_payload(
     if (models_dir / "risk.joblib").exists():
         risk_model = RiskModel.load(models_dir / "risk.joblib")
 
-    lead_ids = [entity_id for _, _, entity_id in ranked[:top_n]]
+    # EVERY lead gets an explanation, not only the first page of them.
+    #
+    # Both the attributions and the fund trails used to be capped at the top 25.
+    # That meant 60 of the 85 leads said "no attribution was recorded" and "no
+    # trail was followed" the moment anyone clicked past the first screen -- a tool
+    # that only explains its demo path is not an explainable tool. An attribution
+    # is one vectorised call and a trail is one bounded graph walk, so the caps
+    # bought no measurable time and cost the thing the interface exists for.
+    lead_ids = [entity_id for risk, _, entity_id in ranked if risk >= explain_floor]
+    if len(lead_ids) > lead_cap:             # a guard against a pathological run
+        lead_ids = lead_ids[:lead_cap]
     explanation_rows = {}
     if risk_model is not None and lead_ids:
         if window_id is None:
@@ -486,6 +545,7 @@ def build_window_payload(
             "addresses": list(entity.get("addresses", []))[:40],
             "risk": risk,
             "risk_band": band_for(risk),
+            "lead": band_for(risk) != "low",
             "confidence": round(risk / 100, 4),
             "anomaly_score": round(anomaly, 6),
             "typology": _typologies(structural_row),
@@ -515,12 +575,7 @@ def build_window_payload(
                 for item in history.itertuples(index=False)
             ],
             "explanation": (
-                {
-                    "method": explanation["method"],
-                    "base": round(explanation["base"], 6),
-                    "prediction": round(explanation["prediction"], 6),
-                    "residual": round(explanation["residual"], 9),
-                }
+                _explanation_block(explanation)
                 if explanation else None
             ),
             "features": (
@@ -685,6 +740,12 @@ def build_window_payload(
 
     corpus = corpus_statistics(frame, corr, scored, load_report)
     behaviour = behaviour_composition(corr, structural, scored)
+    # The one-sentence description travels with the numbers it describes, so the
+    # page, the printed report and the dossier cannot tell different stories.
+    corpus["summary"] = summary_sentence(corpus, behaviour)
+    # The qualifications travel with the numbers they qualify, rendered at body
+    # size under the headline rather than inside it.
+    corpus["notes"] = summary_notes(corpus)
     drift = _drift_for(matrix, models_dir)
 
     payload: dict[str, Any] = {

@@ -84,11 +84,15 @@
 
     "Entity": {
       "type": "object",
-      "required": ["id", "label", "kind", "risk", "risk_band"],
+      "required": ["id", "label", "kind", "risk", "risk_band", "lead"],
       "additionalProperties": false,
       "properties": {
         "id": { "type": "string", "pattern": "^[EN]-[0-9]{4,}$", "description": "E-#### for wallet clusters, N-#### for network endpoints. Four or more digits -- larger datasets produce 5-digit ids." },
         "label": { "type": "string", "description": "Short display label for the graph node" },
+        "lead": {
+          "type": "boolean",
+          "description": "Whether this is an investigative LEAD, as opposed to a node that exists to make the graph readable. Decided HERE, once, because it is the difference between '85 groups flagged' and '100' -- an IP endpoint inherits the peak risk of the wallets it controlled, so it can carry a review band without being a wallet group. Counting endpoints as leads inflates every headline figure, and every page that has to remember the rule is a page that will one day forget it."
+        },
         "kind": {
           "type": "string",
           "enum": ["wallet", "exchange", "mixer", "seed", "ip", "unknown"],
@@ -138,14 +142,17 @@
         },
         "explanation": {
           "type": "object",
-          "description": "How the score decomposes. `base + contributions == prediction` up to `residual`, which is reported rather than assumed: a non-zero residual means the explanation does not reconcile with the score on screen.",
-          "required": ["method", "base", "prediction", "residual"],
+          "description": "How the score decomposes. `base + listed contributions + other_contribution == prediction` exactly, because the factors too small to draw are carried as one stated term rather than dropped. `residual` is reported rather than assumed: a non-zero residual means the explanation does not reconcile with the score on screen.",
+          "required": ["method", "base", "prediction", "residual", "listed_count", "other_count", "other_contribution"],
           "additionalProperties": false,
           "properties": {
             "method": { "type": "string", "description": "e.g. 'exact TreeSHAP (XGBoost pred_contribs)' or 'exact decision-path contributions (Saabas), not Shapley'. Named because they are NOT equivalent and we do not call both SHAP." },
             "base": { "type": "number" },
             "prediction": { "type": "number", "minimum": 0, "maximum": 1 },
-            "residual": { "type": "number", "description": "prediction - (base + sum of contributions). Should be ~0; reported so it can be checked." }
+            "residual": { "type": "number", "description": "prediction - (base + sum of ALL contributions, listed and unlisted). Should be ~0; reported so it can be checked." },
+            "listed_count": { "type": "integer", "minimum": 0, "description": "How many contributions are named in `features`" },
+            "other_count": { "type": "integer", "minimum": 0, "description": "How many were combined into `other_contribution` because they were too small to draw" },
+            "other_contribution": { "type": "number", "description": "Combined contribution of the factors not named in `features`. Computed as the arithmetic remainder, so the drawn parts always add up to the score they are drawn beneath." }
           }
         },
         "features": {
@@ -499,6 +506,53 @@
         "span_hours": { "type": "number", "minimum": 0 },
         "span_start": { "type": ["string", "null"], "format": "date-time" },
         "span_end": { "type": ["string", "null"], "format": "date-time" },
+        "summary": {
+          "type": "string",
+          "description": "ONE sentence describing the capture, built from the measured numbers. Generated server-side because it appears on the dataset page, in the printed report and in the case dossier -- three hand-written copies of one claim is three chances to disagree. It is also the sentence a presenter reads aloud, which is why the qualifications below are NOT part of it."
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Qualifications that stop the summary being read wrongly, e.g. a final day that holds 19 transactions against 7,000 in the days before it, or a busiest hour that is the largest of twenty-four near-identical hours. Rendered at body size under the headline, never folded into it: a headline that has to be read in full before it is true is a headline that will be quoted without its second half."
+        },
+        "daily": {
+          "type": "array",
+          "description": "Volume and value per calendar day. Two numbers per day, not one: a day can be busy and small, or quiet and enormous.",
+          "items": {
+            "type": "object",
+            "required": ["day", "transactions", "value_btc"],
+            "additionalProperties": false,
+            "properties": {
+              "day": { "type": "string" },
+              "transactions": { "type": "integer", "minimum": 0 },
+              "value_btc": { "type": "number", "minimum": 0 }
+            }
+          }
+        },
+        "hourly": {
+          "type": "array",
+          "description": "The same two measures by hour of day, summed across every day in the capture. This answers a different question from `daily`: not what happened on Tuesday but WHEN activity happens. All 24 hours are present, including the quiet ones, because a chart that silently omits 03:00 misrepresents the shape of the day.",
+          "items": {
+            "type": "object",
+            "required": ["hour", "transactions", "value_btc"],
+            "additionalProperties": false,
+            "properties": {
+              "hour": { "type": "integer", "minimum": 0, "maximum": 23 },
+              "transactions": { "type": "integer", "minimum": 0 },
+              "value_btc": { "type": "number", "minimum": 0 }
+            }
+          }
+        },
+        "peak": {
+          "type": "object",
+          "description": "The busiest hour of the day and the busiest day, so the interface can highlight rather than make the reader hunt.",
+          "additionalProperties": false,
+          "properties": {
+            "hour": { "type": ["integer", "null"], "minimum": 0, "maximum": 23 },
+            "day": { "type": ["string", "null"] },
+            "transactions": { "type": "integer", "minimum": 0 }
+          }
+        },
         "value_percentiles": {
           "type": "array",
           "description": "Distribution of transaction value. Percentiles, not a mean, because one whale would otherwise define the summary.",

@@ -1,85 +1,110 @@
-/* Shared chrome: the page nav, the live counters, and the honesty strip.
+/* Shared chrome, in the NETRA theme's own vocabulary.
  *
- * Why this is one file rather than markup repeated in six documents: the nav, the
- * theme toggle and the provenance strip must be IDENTICAL on every page. If each
- * page carried its own copy, they would drift, and the strip -- which exists to
- * state honestly where every number came from -- is the worst place to discover a
- * page has quietly grown its own version of the truth.
- *
- * Pages call NETRA.setCounters(...) and NETRA.setStrip(...) after they load data;
- * everything else is automatic.
+ * Renders the theme's topbar (brand mark, nav, theme and explain controls) into
+ * `#topbar`, and the provenance strip into `#strip`. One implementation rather
+ * than five: the strip states where every number came from, which is the worst
+ * possible place to discover a page has grown its own version of the truth.
  */
 
 "use strict";
 
 const NETRA = (() => {
+  // The order is the order of the argument: here is the data, here is what is in
+  // it, here is what looks wrong and why, here is the whole picture, and here is
+  // how it was built. Every page answers one question and links to the next.
   const PAGES = [
-    { href: "index.html", label: "Ingest", ready: true },
-    { href: "traffic.html", label: "Traffic", ready: true },
-    { href: "investigate.html", label: "Investigate", ready: true },
-    { href: "monitoring.html", label: "Monitoring", ready: true },
-    { href: "model.html", label: "Method", ready: true },
-    { href: "documents.html", label: "Documents", ready: true },
+    { href: "index.html", label: "Cover" },
+    { href: "ingest.html", label: "Ingest" },
+    { href: "dataset.html", label: "Dataset" },
+    { href: "anomalies.html", label: "Anomalies" },
+    { href: "dashboard.html", label: "Dashboard" },
+    { href: "documents.html", label: "Documents" },
   ];
 
   let counters = [];
   let strip = { provenance: "no analysis loaded", generated: "", state: "" };
 
-  function currentPage() {
-    const file = location.pathname.split("/").pop() || "index.html";
-    return file === "" ? "index.html" : file;
-  }
+  const currentPage = () => location.pathname.split("/").pop() || "index.html";
 
   function renderChrome() {
     const here = currentPage();
-
-    const topbar = document.getElementById("topbar");
-    if (topbar) {
-      topbar.innerHTML = `
+    const host = document.getElementById("topbar");
+    if (host) {
+      host.className = "topbar";
+      host.innerHTML = `
         <div class="brand">
-          <span class="wordmark">NETRA</span>
-          <span class="sub">Team Vortex · SIH 2026 · PS SIH26146</span>
+          <div class="brand-mark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 20h18"/><path d="M6 20V10"/><path d="M12 20V4"/><path d="M18 20v-7"/>
+            </svg>
+          </div>
+          <div>
+            <div class="brand-name">NETRA</div>
+            <div class="brand-sub">SIH 2026 · PS SIH26146</div>
+          </div>
         </div>
-        <nav class="nav">
-          ${PAGES.map((page) => page.ready
-            ? `<a href="${page.href}" class="${page.href === here ? "on" : ""}">${page.label}</a>`
-            : `<a class="soon" title="Not built yet">${page.label}</a>`
+        <nav class="pipeline">
+          ${PAGES.map((page, index) => `
+            <a class="stage ${page.href === here ? "active" : ""}" href="${page.href}">
+              <span class="dot"></span>${page.label}</a>
+            ${index < PAGES.length - 1 ? '<span class="stage-sep"></span>' : ""}`
           ).join("")}
         </nav>
-        <div class="spacer"></div>
-        <div class="counters" id="counters"></div>
-        <button class="btn" id="explainBtn" title="Turn on plain-language notes for every number">
-          <span class="dot"></span> Explain mode
-        </button>
-        <button class="btn icon" id="themeBtn" title="Light / dark">&#9681;</button>
-      `;
+        <div class="top-right">
+          <div id="counters" style="display:flex;gap:14px;align-items:center"></div>
+          <div class="tb-controls">
+            <button class="tb-btn" id="explainBtn" title="Plain-language notes for every term">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
+              </svg>Explain
+            </button>
+            <button class="tb-btn ico" id="themeBtn" title="Light / dark">
+              <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/>
+              </svg>
+              <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/>
+              </svg>
+            </button>
+          </div>
+        </div>`;
+
       document.getElementById("themeBtn").onclick = () => {
         toggleTheme();
-        renderStrip();
+        document.dispatchEvent(new CustomEvent("netra:theme"));
       };
-      const explainBtn = document.getElementById("explainBtn");
-      explainBtn.onclick = () => {
-        const on = !document.body.classList.contains("explain");
-        document.body.classList.toggle("explain", on);
-        explainBtn.classList.toggle("on", on);
-        toast(on ? "Explain mode on: click any underlined term" : "Explain mode off");
+      const explain = document.getElementById("explainBtn");
+      explain.onclick = () => {
+        const on = !document.body.classList.contains("explain-on");
+        document.body.classList.toggle("explain-on", on);
+        explain.classList.toggle("on", on);
+        toast(on ? "Explain mode on — click any underlined term" : "Explain mode off");
         document.dispatchEvent(new CustomEvent("netra:explain"));
       };
     }
 
     const stripHost = document.getElementById("strip");
     if (stripHost) {
+      stripHost.className = "strip";
+      stripHost.style.cssText =
+        "display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 22px;" +
+        "font-size:11.5px;color:var(--ink-3);border-top:1px solid var(--border-2);" +
+        "background:var(--surface);font-family:var(--mono)";
       stripHost.innerHTML = `
-        <span class="mono" id="stripProvenance"></span>
-        <span class="spacer"></span>
-        <span class="mono" id="stripGenerated"></span>
-        <button class="btn sm" id="reloadBtn">Reload state</button>
-        <span class="mono" id="stripState"></span>
-      `;
+        <span id="stripProvenance"></span>
+        <span style="flex:1"></span>
+        <span id="stripGenerated"></span>
+        <button class="tb-btn" id="reloadBtn" style="height:28px;padding:0 10px;font-size:11.5px">
+          Reload state</button>
+        <span id="stripState"></span>`;
       document.getElementById("reloadBtn").onclick = async () => {
         try {
           const result = await api("/reload", { method: "POST" });
-          toast(`Reloaded: ${result.cleared_caches} cached view(s) dropped`);
+          toast(`Reloaded — ${result.cleared_caches} cached view(s) dropped`);
           location.reload();
         } catch (error) {
           toast(`Reload failed: ${error.message}`);
@@ -87,71 +112,52 @@ const NETRA = (() => {
       };
     }
 
-    if (!document.getElementById("pop")) {
-      const pop = document.createElement("div");
-      pop.id = "pop";
-      pop.className = "pop";
-      pop.hidden = true;
-      document.body.appendChild(pop);
+    if (!document.getElementById("tip")) {
+      const tip = document.createElement("div");
+      tip.id = "tip";
+      tip.className = "tip";
+      document.body.appendChild(tip);
     }
     if (!document.getElementById("toast")) {
       const node = document.createElement("div");
       node.id = "toast";
       node.className = "toast";
-      node.hidden = true;
       document.body.appendChild(node);
     }
-
     renderCounters();
     renderStrip();
   }
 
-  function setCounters(list) {
-    counters = list || [];
-    renderCounters();
-  }
+  const setCounters = (list) => { counters = list || []; renderCounters(); };
 
   function renderCounters() {
     const host = document.getElementById("counters");
     if (!host) return;
-    host.innerHTML = counters.map((item) =>
-      `<div><span>${esc(item.label)}</span><strong class="mono">${item.value}</strong></div>`
-    ).join("");
+    host.innerHTML = counters.map((item) => `
+      <div style="line-height:1.15;text-align:right">
+        <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">
+          ${esc(item.label)}</div>
+        <div class="mono" style="font-size:14px;font-weight:700">${item.value}</div>
+      </div>`).join("");
   }
 
-  function setStrip(values) {
-    strip = { ...strip, ...(values || {}) };
-    renderStrip();
-  }
+  const setStrip = (values) => { strip = { ...strip, ...(values || {}) }; renderStrip(); };
 
   function renderStrip() {
-    const provenance = document.getElementById("stripProvenance");
-    const generated = document.getElementById("stripGenerated");
-    const state = document.getElementById("stripState");
-    if (provenance) provenance.textContent = strip.provenance;
-    if (generated) generated.textContent = strip.generated;
-    if (state) state.textContent = strip.state;
+    const p = document.getElementById("stripProvenance");
+    const g = document.getElementById("stripGenerated");
+    const s = document.getElementById("stripState");
+    if (p) p.textContent = strip.provenance;
+    if (g) g.textContent = strip.generated;
+    if (s) s.textContent = strip.state;
   }
 
-  /** Load the window list and expose it, so pages do not each fetch it. */
   async function loadWindows() {
     try {
-      const data = await api("/windows");
-      return data.windows || [];
+      return (await api("/windows")).windows || [];
     } catch (error) {
       return [];
     }
-  }
-
-  /** A small window switcher. Compares as strings because the selector may be a
-   *  batch id, "all", or absent -- and Number("all") is NaN, so a numeric
-   *  comparison would silently highlight nothing. */
-  function windowSwitcher(windows, activeId) {
-    if (!windows.length) return "";
-    return windows.map((item) =>
-      `<a class="chip ${String(item.id) === String(activeId) ? "on" : ""}" href="?window=${item.id}">` +
-      `${esc(String(item.label).replace(/^window-/, ""))}</a>`
-    ).join("");
   }
 
   async function init() {
@@ -160,11 +166,10 @@ const NETRA = (() => {
     renderChrome();
     try {
       const health = await api("/health");
-      const models = health.models || {};
-      strip.provenance = models.metrics
-        ? `engine ${health.engine_version} · RandomForest (windowed) · explanations: decision-path contributions`
-        : "model not trained";
-      strip.state = health.store?.exists ? "offline · local" : "no analysis yet";
+      strip.provenance = `engine ${health.engine_version} · offline · local`;
+      strip.state = health.store?.exists
+        ? `${health.store.windows} batch(es) analysed`
+        : "no analysis yet";
       renderStrip();
       return health;
     } catch (error) {
@@ -174,5 +179,5 @@ const NETRA = (() => {
     }
   }
 
-  return { PAGES, init, setCounters, setStrip, renderStrip, loadWindows, windowSwitcher, currentPage };
+  return { PAGES, init, setCounters, setStrip, renderStrip, loadWindows, currentPage };
 })();

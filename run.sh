@@ -83,12 +83,13 @@ fi
 cat <<BANNER
 
   NETRA is starting on http://localhost:${PORT}
-    Ingest      http://localhost:${PORT}/
-    Traffic     http://localhost:${PORT}/traffic.html
-    Investigate http://localhost:${PORT}/investigate.html
-    Monitoring  http://localhost:${PORT}/monitoring.html
-    Method      http://localhost:${PORT}/model.html
+    Cover       http://localhost:${PORT}/
+    Ingest      http://localhost:${PORT}/ingest.html
+    Dataset     http://localhost:${PORT}/dataset.html
+    Anomalies   http://localhost:${PORT}/anomalies.html
+    Dashboard   http://localhost:${PORT}/dashboard.html
     Documents   http://localhost:${PORT}/documents.html
+    Reports     http://localhost:${PORT}/print/dataset  (A4, print to PDF)
     API console http://localhost:${PORT}/docs
 
   Offline check: unplug the network now. Everything above keeps working.

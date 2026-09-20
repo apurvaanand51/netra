@@ -145,6 +145,7 @@ generator, so shipping it would be shipping an output, not a source.
       was available.
 - [ ] `metrics.json` reports `cv_method` as **StratifiedGroupKFold** — grouped by
       batch, so a wallet cannot appear on both sides of a split.
-- [ ] The Method page renders the new scorecard and the reliability curve.
+- [ ] The scorecard renders on the pages: `/metrics` feeds the cover, the dashboard
+      and the printed reports, so the new numbers appear everywhere at once.
 - [ ] The README's numbers still match `metrics.json`. **If they disagree, update
       the README — never leave the two describing different runs.**

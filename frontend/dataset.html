@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NETRA — what is in this data</title>
+<link href="vendor/fonts.css" rel="stylesheet">
+<link href="assets/theme.css" rel="stylesheet">
+<link href="assets/theme-additions.css" rel="stylesheet">
+</head>
+<body>
+<div id="app">
+
+  <div id="topbar"></div>
+
+  <main class="wrap">
+
+    <div id="loading" hidden></div>
+
+    <!-- ---------- The sentence, then everything else ----------
+         One reading of the whole capture, generated on the server from the same
+         numbers the charts below draw. It cannot contradict them. -->
+    <section class="band">
+      <div class="eyebrow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+        </svg>
+        Step 2 of 4 · what was read
+      </div>
+      <p class="lede-sentence" id="summary"></p>
+      <div id="notes" style="max-width:92ch;margin:0 0 12px"></div>
+      <p style="font-size:14.5px;color:var(--ink-2);max-width:92ch" id="scope"></p>
+    </section>
+
+    <section class="band">
+      <div class="hero-row" id="heroStats"></div>
+    </section>
+
+    <!-- ---------- A · the five days, twice ---------- -->
+    <section class="band">
+      <h2>What a day looks like</h2>
+      <p class="cap">The same days, counted two ways. They do not move together —
+        a day can be quiet and still be expensive.</p>
+      <div class="two-col">
+        <div class="card">
+          <div class="chd"><div class="ci">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 20h18"/><path d="M6 20v-6"/><path d="M12 20V8"/><path d="M18 20v-9"/>
+            </svg></div>
+            <div class="ct"><b>Transactions per day</b><span>how many</span></div></div>
+          <div class="chart-box short"><canvas id="dailyChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="chd"><div class="ci">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 17l5-6 4 3 5-8 4 4"/></svg></div>
+            <div class="ct"><b>Value moved per day</b><span>how much</span></div></div>
+          <div class="chart-box short"><canvas id="valueChart"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- C · when ---------- -->
+    <section class="band">
+      <div class="card">
+        <div class="chd"><div class="ci">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></div>
+          <div class="ct"><b>Activity by hour of day</b>
+            <span id="peakCaption">every hour, summed across the capture</span></div></div>
+        <div class="chart-box tall"><canvas id="hourlyChart"></canvas></div>
+      </div>
+    </section>
+
+    <!-- ---------- D + E · where the value sits, and every group ---------- -->
+    <section class="band two-col">
+      <div class="card">
+        <div class="chd"><div class="ci">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20v-3"/>
+          </svg></div>
+          <div class="ct"><b>Small transactions, large value</b>
+            <span>share of the count against share of the money</span></div></div>
+        <div class="chart-box short"><canvas id="sizeChart"></canvas></div>
+        <p class="cap" style="margin:14px 0 0">Most transactions are small.
+          Most value is not.</p>
+      </div>
+
+      <div class="card">
+        <div class="chd"><div class="ci">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+            <rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+          <div class="ct"><b>Every wallet group</b>
+            <span id="dotsCaption">one square per group</span></div></div>
+        <div class="dotgrid" id="dots"></div>
+        <div class="hero-row" id="coverageStats" style="grid-template-columns:repeat(3,1fr);
+             margin-top:18px;gap:12px"></div>
+        <p class="cap" style="margin:12px 0 0">We examined every group. The coloured
+          squares are the part raised for review.</p>
+      </div>
+    </section>
+
+    <!-- ---------- F · where ---------- -->
+    <section class="band">
+      <div class="card">
+        <div class="chd"><div class="ci">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/><path d="M3 12h18"/>
+            <path d="M12 3c2.5 2.6 2.5 15.4 0 18-2.5-2.6-2.5-15.4 0-18z"/></svg></div>
+          <div class="ct"><b>Where the groups were controlled from</b>
+            <span>the amber part of each bar is the share raised for review</span></div></div>
+        <div class="geo-list" id="geo"></div>
+      </div>
+    </section>
+
+    <!-- ---------- behaviour mix ---------- -->
+    <section class="band">
+      <div class="card">
+        <div class="chd"><div class="ci">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.2 15.9A10 10 0 1 1 8 2.8"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg></div>
+          <div class="ct"><b>How the groups behave</b>
+            <span>each group counted once, under the first pattern it matches</span></div></div>
+        <div class="chart-box short"><canvas id="behaviourChart"></canvas></div>
+      </div>
+    </section>
+
+    <section class="band cta-row">
+      <a class="btn btn-primary" href="/print/dataset" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/>
+        </svg>
+        Download full report (PDF)
+      </a>
+      <a class="btn btn-ghost" href="anomalies.html">
+        See what looks wrong
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h14"/><path d="M12 5l7 7-7 7"/>
+        </svg>
+      </a>
+      <span class="mono" style="font-size:12px;color:var(--ink-3)" id="datasetNote"></span>
+    </section>
+
+  </main>
+
+  <div id="strip"></div>
+</div>
+
+<script src="assets/api.js"></script>
+<script src="assets/nav.js"></script>
+<script src="vendor/chart.umd.min.js"></script>
+<script src="assets/dataset.js"></script>
+</body>
+</html>

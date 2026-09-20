@@ -9,23 +9,33 @@
     "source_file": "sample_traffic.csv",
     "engine_version": "0.1.0"
   },
-
   "entities": [
     {
       "id": "E-0001",
       "label": "Seed\nbc1qsd",
       "kind": "seed",
       "role": "Origin cluster. 312 co-spent addresses consolidating into a single controlling actor - the distribution point of the traced funds.",
-      "addresses": ["bc1qsd4f2x9k2m", "bc1qsd7h3p1n8q", "bc1qsd2r5t6v4w"],
+      "addresses": [
+        "bc1qsd4f2x9k2m",
+        "bc1qsd7h3p1n8q",
+        "bc1qsd2r5t6v4w"
+      ],
       "cluster": "C-01",
       "cluster_size": 312,
       "risk": 58,
       "risk_band": "medium",
       "confidence": 0.72,
       "anomaly_score": -0.081,
-      "typology": ["common_input_cluster", "high_fanout"],
-      "geo": ["RU"],
-      "asn": ["AS204601"],
+      "typology": [
+        "common_input_cluster",
+        "high_fanout"
+      ],
+      "geo": [
+        "RU"
+      ],
+      "asn": [
+        "AS204601"
+      ],
       "country_count": 1,
       "value_btc": 184.6,
       "tx_count": 512,
@@ -33,11 +43,31 @@
       "last_seen": "2026-08-14T02:11:00Z",
       "model": "RandomForest v1",
       "features": [
-        { "name": "common_input_score", "value": 0.79, "importance": 0.29 },
-        { "name": "fan_out_degree", "value": 0.66, "importance": 0.21 },
-        { "name": "address_coactivity", "value": 0.54, "importance": 0.16 },
-        { "name": "temporal_clustering", "value": 0.38, "importance": 0.10 },
-        { "name": "known_service_match", "value": 0.12, "importance": -0.11 }
+        {
+          "name": "common_input_score",
+          "value": 0.79,
+          "importance": 0.29
+        },
+        {
+          "name": "fan_out_degree",
+          "value": 0.66,
+          "importance": 0.21
+        },
+        {
+          "name": "address_coactivity",
+          "value": 0.54,
+          "importance": 0.16
+        },
+        {
+          "name": "temporal_clustering",
+          "value": 0.38,
+          "importance": 0.1
+        },
+        {
+          "name": "known_service_match",
+          "value": 0.12,
+          "importance": -0.11
+        }
       ],
       "reasons": [
         {
@@ -52,23 +82,31 @@
           "title": "Fan-out origin",
           "detail": "Initial distribution point of the traced funds - 184.6 BTC leaves this cluster."
         }
-      ]
+      ],
+      "lead": true
     },
-
     {
       "id": "E-0002",
       "label": "Peel 1",
       "kind": "wallet",
       "role": "First intermediary in the layering chain. Receives the full 62 BTC and forwards the bulk onward, shaving off a small peel.",
-      "addresses": ["bc1qp1m4k7d2s"],
+      "addresses": [
+        "bc1qp1m4k7d2s"
+      ],
       "cluster": "C-02",
       "cluster_size": 3,
       "risk": 44,
       "risk_band": "low",
       "confidence": 0.61,
-      "typology": ["peel_chain"],
-      "geo": ["RU"],
-      "asn": ["AS204601"],
+      "typology": [
+        "peel_chain"
+      ],
+      "geo": [
+        "RU"
+      ],
+      "asn": [
+        "AS204601"
+      ],
       "country_count": 1,
       "value_btc": 62.0,
       "tx_count": 4,
@@ -76,9 +114,21 @@
       "last_seen": "2026-08-12T01:52:00Z",
       "model": "RandomForest v1",
       "features": [
-        { "name": "peel_pattern_score", "value": 0.71, "importance": 0.24 },
-        { "name": "hop_sequentiality", "value": 0.63, "importance": 0.18 },
-        { "name": "value_decay_rate", "value": 0.31, "importance": 0.09 }
+        {
+          "name": "peel_pattern_score",
+          "value": 0.71,
+          "importance": 0.24
+        },
+        {
+          "name": "hop_sequentiality",
+          "value": 0.63,
+          "importance": 0.18
+        },
+        {
+          "name": "value_decay_rate",
+          "value": 0.31,
+          "importance": 0.09
+        }
       ],
       "reasons": [
         {
@@ -89,27 +139,48 @@
         }
       ],
       "facts": [
-        { "label": "Role", "value": "Layering hop 1 of 3" },
-        { "label": "Value forwarded", "value": "61.4 BTC" },
-        { "label": "Links", "value": "Seed cluster -> Peel 2" }
-      ]
+        {
+          "label": "Role",
+          "value": "Layering hop 1 of 3"
+        },
+        {
+          "label": "Value forwarded",
+          "value": "61.4 BTC"
+        },
+        {
+          "label": "Links",
+          "value": "Seed cluster -> Peel 2"
+        }
+      ],
+      "lead": false
     },
-
     {
       "id": "E-0003",
       "label": "Peel 2\nbc1q7k",
       "kind": "wallet",
       "role": "Core peel-chain wallet. Repeatedly shaves value into new change addresses while forwarding the remainder, and is the hop that routes funds into the mixer.",
-      "addresses": ["bc1q7k9ac3f1t", "bc1q7k2m8x5p0n"],
+      "addresses": [
+        "bc1q7k9ac3f1t",
+        "bc1q7k2m8x5p0n"
+      ],
       "cluster": "C-02",
       "cluster_size": 3,
       "risk": 76,
       "risk_band": "high",
       "confidence": 0.79,
       "anomaly_score": -0.142,
-      "typology": ["peel_chain", "change_address_reuse"],
-      "geo": ["RU", "DE"],
-      "asn": ["AS204601", "AS51167"],
+      "typology": [
+        "peel_chain",
+        "change_address_reuse"
+      ],
+      "geo": [
+        "RU",
+        "DE"
+      ],
+      "asn": [
+        "AS204601",
+        "AS51167"
+      ],
       "country_count": 2,
       "value_btc": 62.3,
       "tx_count": 11,
@@ -117,11 +188,31 @@
       "last_seen": "2026-08-14T02:26:00Z",
       "model": "RandomForest v1",
       "features": [
-        { "name": "peel_pattern_score", "value": 0.84, "importance": 0.31 },
-        { "name": "hop_sequentiality", "value": 0.69, "importance": 0.22 },
-        { "name": "change_addr_reuse", "value": 0.58, "importance": 0.18 },
-        { "name": "value_decay_rate", "value": 0.47, "importance": 0.14 },
-        { "name": "counterparty_diversity", "value": 0.30, "importance": -0.09 }
+        {
+          "name": "peel_pattern_score",
+          "value": 0.84,
+          "importance": 0.31
+        },
+        {
+          "name": "hop_sequentiality",
+          "value": 0.69,
+          "importance": 0.22
+        },
+        {
+          "name": "change_addr_reuse",
+          "value": 0.58,
+          "importance": 0.18
+        },
+        {
+          "name": "value_decay_rate",
+          "value": 0.47,
+          "importance": 0.14
+        },
+        {
+          "name": "counterparty_diversity",
+          "value": 0.3,
+          "importance": -0.09
+        }
       ],
       "reasons": [
         {
@@ -144,27 +235,59 @@
         }
       ],
       "timeline": [
-        { "step": 1, "title": "Origin - seed cluster", "detail": "312 co-spent addresses consolidate 184.6 BTC", "ref": "bc1qsd4f2x9k2m", "critical": false },
-        { "step": 2, "title": "Peel-chain layering", "detail": "3 hops shave value and forward the remainder", "ref": "bc1q7k9ac3f1t", "critical": false },
-        { "step": 3, "title": "CoinJoin mixer", "detail": "9 uniform outputs break the ownership trail", "ref": "mix-3f2a91", "critical": true },
-        { "step": 4, "title": "Cash-out at exchange", "detail": "Consolidated into a regulated exchange hot wallet", "ref": "bc1qend7x2", "critical": true }
-      ]
+        {
+          "step": 1,
+          "title": "Origin - seed cluster",
+          "detail": "312 co-spent addresses consolidate 184.6 BTC",
+          "ref": "bc1qsd4f2x9k2m",
+          "critical": false
+        },
+        {
+          "step": 2,
+          "title": "Peel-chain layering",
+          "detail": "3 hops shave value and forward the remainder",
+          "ref": "bc1q7k9ac3f1t",
+          "critical": false
+        },
+        {
+          "step": 3,
+          "title": "CoinJoin mixer",
+          "detail": "9 uniform outputs break the ownership trail",
+          "ref": "mix-3f2a91",
+          "critical": true
+        },
+        {
+          "step": 4,
+          "title": "Cash-out at exchange",
+          "detail": "Consolidated into a regulated exchange hot wallet",
+          "ref": "bc1qend7x2",
+          "critical": true
+        }
+      ],
+      "lead": true
     },
-
     {
       "id": "E-0004",
       "label": "Peel 3",
       "kind": "wallet",
       "role": "Final peel hop before the mixer. Consolidates the remaining value and routes it into the CoinJoin to break the ownership trail.",
-      "addresses": ["bc1qp3v6b1n4j"],
+      "addresses": [
+        "bc1qp3v6b1n4j"
+      ],
       "cluster": "C-02",
       "cluster_size": 3,
       "risk": 49,
       "risk_band": "low",
       "confidence": 0.66,
-      "typology": ["peel_chain"],
-      "geo": ["DE"],
-      "asn": ["AS51167"],
+      "typology": [
+        "peel_chain"
+      ],
+      "geo": [
+        "DE"
+      ],
+      "asn": [
+        "AS51167"
+      ],
       "country_count": 1,
       "value_btc": 58.1,
       "tx_count": 5,
@@ -172,8 +295,16 @@
       "last_seen": "2026-08-14T02:33:00Z",
       "model": "RandomForest v1",
       "features": [
-        { "name": "peel_pattern_score", "value": 0.68, "importance": 0.22 },
-        { "name": "hop_sequentiality", "value": 0.61, "importance": 0.17 }
+        {
+          "name": "peel_pattern_score",
+          "value": 0.68,
+          "importance": 0.22
+        },
+        {
+          "name": "hop_sequentiality",
+          "value": 0.61,
+          "importance": 0.17
+        }
       ],
       "reasons": [
         {
@@ -184,27 +315,48 @@
         }
       ],
       "facts": [
-        { "label": "Role", "value": "Layering hop 3 of 3" },
-        { "label": "Value forwarded", "value": "58.1 BTC" },
-        { "label": "Links", "value": "Peel 2 -> Mixer" }
-      ]
+        {
+          "label": "Role",
+          "value": "Layering hop 3 of 3"
+        },
+        {
+          "label": "Value forwarded",
+          "value": "58.1 BTC"
+        },
+        {
+          "label": "Links",
+          "value": "Peel 2 -> Mixer"
+        }
+      ],
+      "lead": false
     },
-
     {
       "id": "E-0005",
       "label": "CoinJoin\nmixer",
       "kind": "mixer",
       "role": "CoinJoin mixing service. Many equal-value inputs and outputs deliberately sever the common-input ownership heuristic.",
-      "addresses": ["mix-3f2a91", "mix-3f2a92"],
+      "addresses": [
+        "mix-3f2a91",
+        "mix-3f2a92"
+      ],
       "cluster": "C-03",
       "cluster_size": 9,
       "risk": 88,
       "risk_band": "critical",
       "confidence": 0.86,
       "anomaly_score": -0.203,
-      "typology": ["coinjoin_mixer", "ownership_break"],
-      "geo": ["DE", "NL"],
-      "asn": ["AS51167", "AS9009"],
+      "typology": [
+        "coinjoin_mixer",
+        "ownership_break"
+      ],
+      "geo": [
+        "DE",
+        "NL"
+      ],
+      "asn": [
+        "AS51167",
+        "AS9009"
+      ],
       "country_count": 2,
       "value_btc": 96.0,
       "tx_count": 27,
@@ -212,11 +364,31 @@
       "last_seen": "2026-08-14T02:36:00Z",
       "model": "RandomForest v1",
       "features": [
-        { "name": "output_uniformity", "value": 0.97, "importance": 0.38 },
-        { "name": "input_fan_in", "value": 0.81, "importance": 0.24 },
-        { "name": "same_block_coordination", "value": 0.90, "importance": 0.21 },
-        { "name": "ownership_break_score", "value": 0.76, "importance": 0.11 },
-        { "name": "value_variance", "value": 0.05, "importance": -0.06 }
+        {
+          "name": "output_uniformity",
+          "value": 0.97,
+          "importance": 0.38
+        },
+        {
+          "name": "input_fan_in",
+          "value": 0.81,
+          "importance": 0.24
+        },
+        {
+          "name": "same_block_coordination",
+          "value": 0.9,
+          "importance": 0.21
+        },
+        {
+          "name": "ownership_break_score",
+          "value": 0.76,
+          "importance": 0.11
+        },
+        {
+          "name": "value_variance",
+          "value": 0.05,
+          "importance": -0.06
+        }
       ],
       "reasons": [
         {
@@ -237,23 +409,31 @@
           "title": "Ownership break",
           "detail": "The transaction structure deliberately defeats common-input clustering."
         }
-      ]
+      ],
+      "lead": true
     },
-
     {
       "id": "E-0006",
       "label": "out-a",
       "kind": "wallet",
       "role": "One of nine uniform CoinJoin outputs. Individually it looks clean, but the graph links it back to the mixer and onward to the exchange.",
-      "addresses": ["bc1qoa3m7k2d"],
+      "addresses": [
+        "bc1qoa3m7k2d"
+      ],
       "cluster": "C-03",
       "cluster_size": 9,
       "risk": 52,
       "risk_band": "medium",
       "confidence": 0.58,
-      "typology": ["post_mix_output"],
-      "geo": ["NL"],
-      "asn": ["AS9009"],
+      "typology": [
+        "post_mix_output"
+      ],
+      "geo": [
+        "NL"
+      ],
+      "asn": [
+        "AS9009"
+      ],
       "country_count": 1,
       "value_btc": 0.5,
       "tx_count": 2,
@@ -261,8 +441,16 @@
       "last_seen": "2026-08-14T03:02:00Z",
       "model": "RandomForest v1",
       "features": [
-        { "name": "mixer_proximity", "value": 0.88, "importance": 0.26 },
-        { "name": "output_uniformity", "value": 0.74, "importance": 0.15 }
+        {
+          "name": "mixer_proximity",
+          "value": 0.88,
+          "importance": 0.26
+        },
+        {
+          "name": "output_uniformity",
+          "value": 0.74,
+          "importance": 0.15
+        }
       ],
       "reasons": [
         {
@@ -273,26 +461,43 @@
         }
       ],
       "facts": [
-        { "label": "Role", "value": "Post-mix output" },
-        { "label": "Value", "value": "0.5 BTC (uniform)" },
-        { "label": "Links", "value": "Mixer -> Exchange" }
-      ]
+        {
+          "label": "Role",
+          "value": "Post-mix output"
+        },
+        {
+          "label": "Value",
+          "value": "0.5 BTC (uniform)"
+        },
+        {
+          "label": "Links",
+          "value": "Mixer -> Exchange"
+        }
+      ],
+      "lead": true
     },
-
     {
       "id": "E-0007",
       "label": "out-b",
       "kind": "wallet",
       "role": "Sibling CoinJoin output. It recombines with out-a at the cash-out wallet - a re-aggregation the graph makes visible.",
-      "addresses": ["bc1qob8n2v5x"],
+      "addresses": [
+        "bc1qob8n2v5x"
+      ],
       "cluster": "C-03",
       "cluster_size": 9,
       "risk": 52,
       "risk_band": "medium",
       "confidence": 0.57,
-      "typology": ["post_mix_output"],
-      "geo": ["NL"],
-      "asn": ["AS9009"],
+      "typology": [
+        "post_mix_output"
+      ],
+      "geo": [
+        "NL"
+      ],
+      "asn": [
+        "AS9009"
+      ],
       "country_count": 1,
       "value_btc": 0.5,
       "tx_count": 2,
@@ -300,8 +505,16 @@
       "last_seen": "2026-08-14T03:04:00Z",
       "model": "RandomForest v1",
       "features": [
-        { "name": "mixer_proximity", "value": 0.86, "importance": 0.25 },
-        { "name": "reaggregation_score", "value": 0.69, "importance": 0.19 }
+        {
+          "name": "mixer_proximity",
+          "value": 0.86,
+          "importance": 0.25
+        },
+        {
+          "name": "reaggregation_score",
+          "value": 0.69,
+          "importance": 0.19
+        }
       ],
       "reasons": [
         {
@@ -312,27 +525,48 @@
         }
       ],
       "facts": [
-        { "label": "Role", "value": "Post-mix output" },
-        { "label": "Value", "value": "0.5 BTC (uniform)" },
-        { "label": "Links", "value": "Mixer -> Exchange" }
-      ]
+        {
+          "label": "Role",
+          "value": "Post-mix output"
+        },
+        {
+          "label": "Value",
+          "value": "0.5 BTC (uniform)"
+        },
+        {
+          "label": "Links",
+          "value": "Mixer -> Exchange"
+        }
+      ],
+      "lead": true
     },
-
     {
       "id": "E-0008",
       "label": "Exchange\nbc1qend",
       "kind": "exchange",
       "role": "Cash-out endpoint. A regulated exchange hot wallet that receives the mixed funds - the real-world handoff point for the investigator.",
-      "addresses": ["bc1qend7x2k9", "bc1qend4m8p"],
+      "addresses": [
+        "bc1qend7x2k9",
+        "bc1qend4m8p"
+      ],
       "cluster": "C-04",
       "cluster_size": 2,
       "risk": 94,
       "risk_band": "critical",
       "confidence": 0.91,
       "anomaly_score": -0.267,
-      "typology": ["laundering_endpoint", "kyc_deposit"],
-      "geo": ["NL", "US"],
-      "asn": ["AS9009", "AS13335"],
+      "typology": [
+        "laundering_endpoint",
+        "kyc_deposit"
+      ],
+      "geo": [
+        "NL",
+        "US"
+      ],
+      "asn": [
+        "AS9009",
+        "AS13335"
+      ],
       "country_count": 3,
       "value_btc": 184.6,
       "tx_count": 43,
@@ -340,11 +574,31 @@
       "last_seen": "2026-08-14T03:09:00Z",
       "model": "RandomForest v1",
       "features": [
-        { "name": "mixer_inflow_ratio", "value": 0.41, "importance": 0.34 },
-        { "name": "exchange_proximity", "value": 0.88, "importance": 0.27 },
-        { "name": "tx_burst_entropy", "value": 0.72, "importance": 0.19 },
-        { "name": "cluster_reuse_score", "value": 0.63, "importance": 0.12 },
-        { "name": "address_age_days", "value": 0.21, "importance": -0.08 }
+        {
+          "name": "mixer_inflow_ratio",
+          "value": 0.41,
+          "importance": 0.34
+        },
+        {
+          "name": "exchange_proximity",
+          "value": 0.88,
+          "importance": 0.27
+        },
+        {
+          "name": "tx_burst_entropy",
+          "value": 0.72,
+          "importance": 0.19
+        },
+        {
+          "name": "cluster_reuse_score",
+          "value": 0.63,
+          "importance": 0.12
+        },
+        {
+          "name": "address_age_days",
+          "value": 0.21,
+          "importance": -0.08
+        }
       ],
       "reasons": [
         {
@@ -373,13 +627,37 @@
         }
       ],
       "timeline": [
-        { "step": 1, "title": "Origin - seed cluster", "detail": "312 co-spent addresses consolidate 184.6 BTC", "ref": "bc1qsd4f2x9k2m", "critical": false },
-        { "step": 2, "title": "Peel-chain layering", "detail": "3 hops shave value and forward the remainder", "ref": "bc1q7k9ac3f1t", "critical": false },
-        { "step": 3, "title": "CoinJoin mixer", "detail": "9 uniform outputs break the ownership trail", "ref": "mix-3f2a91", "critical": true },
-        { "step": 4, "title": "Cash-out at exchange", "detail": "Consolidated into a regulated exchange hot wallet", "ref": "bc1qend7x2k9", "critical": true }
-      ]
+        {
+          "step": 1,
+          "title": "Origin - seed cluster",
+          "detail": "312 co-spent addresses consolidate 184.6 BTC",
+          "ref": "bc1qsd4f2x9k2m",
+          "critical": false
+        },
+        {
+          "step": 2,
+          "title": "Peel-chain layering",
+          "detail": "3 hops shave value and forward the remainder",
+          "ref": "bc1q7k9ac3f1t",
+          "critical": false
+        },
+        {
+          "step": 3,
+          "title": "CoinJoin mixer",
+          "detail": "9 uniform outputs break the ownership trail",
+          "ref": "mix-3f2a91",
+          "critical": true
+        },
+        {
+          "step": 4,
+          "title": "Cash-out at exchange",
+          "detail": "Consolidated into a regulated exchange hot wallet",
+          "ref": "bc1qend7x2k9",
+          "critical": true
+        }
+      ],
+      "lead": true
     },
-
     {
       "id": "N-0001",
       "label": "IP 51.x",
@@ -391,21 +669,37 @@
       "risk": 0,
       "risk_band": "low",
       "typology": [],
-      "geo": ["NL"],
-      "asn": ["AS9009"],
+      "geo": [
+        "NL"
+      ],
+      "asn": [
+        "AS9009"
+      ],
       "country_count": 1,
       "value_btc": 0.0,
       "tx_count": 0,
       "first_seen": "2026-08-11T09:14:00Z",
       "last_seen": "2026-08-14T02:11:00Z",
       "facts": [
-        { "label": "Source", "value": "network_telemetry.csv" },
-        { "label": "Linked wallet", "value": "Seed cluster" },
-        { "label": "Geo", "value": "datacenter - NL" },
-        { "label": "Last octet", "value": "51.15.203.44" }
-      ]
+        {
+          "label": "Source",
+          "value": "network_telemetry.csv"
+        },
+        {
+          "label": "Linked wallet",
+          "value": "Seed cluster"
+        },
+        {
+          "label": "Geo",
+          "value": "datacenter - NL"
+        },
+        {
+          "label": "Last octet",
+          "value": "51.15.203.44"
+        }
+      ],
+      "lead": false
     },
-
     {
       "id": "N-0002",
       "label": "IP 188.x",
@@ -417,21 +711,37 @@
       "risk": 0,
       "risk_band": "low",
       "typology": [],
-      "geo": ["DE"],
-      "asn": ["AS51167"],
+      "geo": [
+        "DE"
+      ],
+      "asn": [
+        "AS51167"
+      ],
       "country_count": 1,
       "value_btc": 0.0,
       "tx_count": 0,
       "first_seen": "2026-08-12T01:52:00Z",
       "last_seen": "2026-08-14T02:26:00Z",
       "facts": [
-        { "label": "Source", "value": "network_telemetry.csv" },
-        { "label": "Linked wallet", "value": "Peel 2" },
-        { "label": "Geo", "value": "VPN exit - DE" },
-        { "label": "Last octet", "value": "188.42.117.9" }
-      ]
+        {
+          "label": "Source",
+          "value": "network_telemetry.csv"
+        },
+        {
+          "label": "Linked wallet",
+          "value": "Peel 2"
+        },
+        {
+          "label": "Geo",
+          "value": "VPN exit - DE"
+        },
+        {
+          "label": "Last octet",
+          "value": "188.42.117.9"
+        }
+      ],
+      "lead": false
     },
-
     {
       "id": "N-0003",
       "label": "IP 45.x",
@@ -443,38 +753,154 @@
       "risk": 0,
       "risk_band": "low",
       "typology": [],
-      "geo": ["US"],
-      "asn": ["AS13335"],
+      "geo": [
+        "US"
+      ],
+      "asn": [
+        "AS13335"
+      ],
       "country_count": 1,
       "value_btc": 0.0,
       "tx_count": 0,
       "first_seen": "2026-08-14T03:09:00Z",
       "last_seen": "2026-08-14T03:09:00Z",
       "facts": [
-        { "label": "Source", "value": "network_telemetry.csv" },
-        { "label": "Linked wallet", "value": "Exchange" },
-        { "label": "Geo", "value": "datacenter - US" },
-        { "label": "Last octet", "value": "45.83.201.17" }
-      ]
+        {
+          "label": "Source",
+          "value": "network_telemetry.csv"
+        },
+        {
+          "label": "Linked wallet",
+          "value": "Exchange"
+        },
+        {
+          "label": "Geo",
+          "value": "datacenter - US"
+        },
+        {
+          "label": "Last octet",
+          "value": "45.83.201.17"
+        }
+      ],
+      "lead": false
     }
   ],
-
   "edges": [
-    { "from": "E-0001", "to": "E-0002", "kind": "flow", "value": 62.0, "label": "62 BTC", "count": 1, "txid": "a1f0c9e2b7d4118a5c3e", "timestamp": "2026-08-12T01:48:00Z" },
-    { "from": "E-0002", "to": "E-0003", "kind": "flow", "value": 61.4, "label": "61.4 BTC", "count": 1, "txid": "b2e1d0f3c8e5229b6d4f", "timestamp": "2026-08-12T01:52:00Z" },
-    { "from": "E-0003", "to": "E-0004", "kind": "flow", "value": 58.1, "label": "58.1 BTC", "count": 1, "txid": "c3f2e1a4d9f6330c7e50", "timestamp": "2026-08-13T23:05:00Z" },
-    { "from": "E-0004", "to": "E-0005", "kind": "flow", "value": 57.0, "label": "57 BTC", "count": 1, "txid": "d4a3f2b5e0a7441d8f61", "timestamp": "2026-08-14T02:33:00Z" },
-    { "from": "E-0003", "to": "E-0005", "kind": "flow", "value": 3.0, "label": "3 BTC", "count": 2, "txid": "e5b4a3c6f1b8552e9072", "timestamp": "2026-08-14T02:26:00Z" },
-    { "from": "E-0005", "to": "E-0006", "kind": "flow", "value": 0.5, "label": "0.5 BTC", "count": 1, "txid": "f6c5b4d7a2c9663fa183", "timestamp": "2026-08-14T02:36:00Z" },
-    { "from": "E-0005", "to": "E-0007", "kind": "flow", "value": 0.5, "label": "0.5 BTC", "count": 1, "txid": "a7d6c5e8b3da7740b294", "timestamp": "2026-08-14T02:36:00Z" },
-    { "from": "E-0006", "to": "E-0008", "kind": "flow", "value": 41.2, "label": "41.2 BTC", "count": 3, "txid": "b8e7d6f9c4eb8851c3a5", "timestamp": "2026-08-14T03:02:00Z" },
-    { "from": "E-0007", "to": "E-0008", "kind": "flow", "value": 22.4, "label": "22.4 BTC", "count": 2, "txid": "c9f8e7a0d5fc9962d4b6", "timestamp": "2026-08-14T03:04:00Z" },
-
-    { "from": "N-0001", "to": "E-0001", "kind": "control", "protocol": "bitcoin-p2p", "count": 18, "timestamp": "2026-08-14T02:11:00Z" },
-    { "from": "N-0002", "to": "E-0003", "kind": "control", "protocol": "bitcoin-p2p", "count": 7, "timestamp": "2026-08-14T02:26:00Z" },
-    { "from": "N-0003", "to": "E-0008", "kind": "control", "protocol": "bitcoin-p2p", "count": 4, "timestamp": "2026-08-14T03:09:00Z" }
+    {
+      "from": "E-0001",
+      "to": "E-0002",
+      "kind": "flow",
+      "value": 62.0,
+      "label": "62 BTC",
+      "count": 1,
+      "txid": "a1f0c9e2b7d4118a5c3e",
+      "timestamp": "2026-08-12T01:48:00Z"
+    },
+    {
+      "from": "E-0002",
+      "to": "E-0003",
+      "kind": "flow",
+      "value": 61.4,
+      "label": "61.4 BTC",
+      "count": 1,
+      "txid": "b2e1d0f3c8e5229b6d4f",
+      "timestamp": "2026-08-12T01:52:00Z"
+    },
+    {
+      "from": "E-0003",
+      "to": "E-0004",
+      "kind": "flow",
+      "value": 58.1,
+      "label": "58.1 BTC",
+      "count": 1,
+      "txid": "c3f2e1a4d9f6330c7e50",
+      "timestamp": "2026-08-13T23:05:00Z"
+    },
+    {
+      "from": "E-0004",
+      "to": "E-0005",
+      "kind": "flow",
+      "value": 57.0,
+      "label": "57 BTC",
+      "count": 1,
+      "txid": "d4a3f2b5e0a7441d8f61",
+      "timestamp": "2026-08-14T02:33:00Z"
+    },
+    {
+      "from": "E-0003",
+      "to": "E-0005",
+      "kind": "flow",
+      "value": 3.0,
+      "label": "3 BTC",
+      "count": 2,
+      "txid": "e5b4a3c6f1b8552e9072",
+      "timestamp": "2026-08-14T02:26:00Z"
+    },
+    {
+      "from": "E-0005",
+      "to": "E-0006",
+      "kind": "flow",
+      "value": 0.5,
+      "label": "0.5 BTC",
+      "count": 1,
+      "txid": "f6c5b4d7a2c9663fa183",
+      "timestamp": "2026-08-14T02:36:00Z"
+    },
+    {
+      "from": "E-0005",
+      "to": "E-0007",
+      "kind": "flow",
+      "value": 0.5,
+      "label": "0.5 BTC",
+      "count": 1,
+      "txid": "a7d6c5e8b3da7740b294",
+      "timestamp": "2026-08-14T02:36:00Z"
+    },
+    {
+      "from": "E-0006",
+      "to": "E-0008",
+      "kind": "flow",
+      "value": 41.2,
+      "label": "41.2 BTC",
+      "count": 3,
+      "txid": "b8e7d6f9c4eb8851c3a5",
+      "timestamp": "2026-08-14T03:02:00Z"
+    },
+    {
+      "from": "E-0007",
+      "to": "E-0008",
+      "kind": "flow",
+      "value": 22.4,
+      "label": "22.4 BTC",
+      "count": 2,
+      "txid": "c9f8e7a0d5fc9962d4b6",
+      "timestamp": "2026-08-14T03:04:00Z"
+    },
+    {
+      "from": "N-0001",
+      "to": "E-0001",
+      "kind": "control",
+      "protocol": "bitcoin-p2p",
+      "count": 18,
+      "timestamp": "2026-08-14T02:11:00Z"
+    },
+    {
+      "from": "N-0002",
+      "to": "E-0003",
+      "kind": "control",
+      "protocol": "bitcoin-p2p",
+      "count": 7,
+      "timestamp": "2026-08-14T02:26:00Z"
+    },
+    {
+      "from": "N-0003",
+      "to": "E-0008",
+      "kind": "control",
+      "protocol": "bitcoin-p2p",
+      "count": 4,
+      "timestamp": "2026-08-14T03:09:00Z"
+    }
   ],
-
   "alerts": [
     {
       "id": "AL-01",
@@ -489,7 +915,10 @@
         "Deposit routed to a known exchange hot wallet",
         "11 consolidations in a 40-minute window"
       ],
-      "txids": ["b8e7d6f9c4eb8851c3a5", "c9f8e7a0d5fc9962d4b6"]
+      "txids": [
+        "b8e7d6f9c4eb8851c3a5",
+        "c9f8e7a0d5fc9962d4b6"
+      ]
     },
     {
       "id": "AL-02",
@@ -504,7 +933,10 @@
         "All inputs signed within the same block",
         "Structurally defeats common-input clustering"
       ],
-      "txids": ["f6c5b4d7a2c9663fa183", "a7d6c5e8b3da7740b294"]
+      "txids": [
+        "f6c5b4d7a2c9663fa183",
+        "a7d6c5e8b3da7740b294"
+      ]
     },
     {
       "id": "AL-03",
@@ -519,7 +951,10 @@
         "Change addresses reused across hops",
         "Endpoints terminate at a CoinJoin mixer"
       ],
-      "txids": ["b2e1d0f3c8e5229b6d4f", "e5b4a3c6f1b8552e9072"]
+      "txids": [
+        "b2e1d0f3c8e5229b6d4f",
+        "e5b4a3c6f1b8552e9072"
+      ]
     },
     {
       "id": "AL-04",
@@ -534,39 +969,123 @@
         "Fan-out origin of the traced 184.6 BTC",
         "Single IP endpoint observed broadcasting"
       ],
-      "txids": ["a1f0c9e2b7d4118a5c3e"]
+      "txids": [
+        "a1f0c9e2b7d4118a5c3e"
+      ]
     }
   ],
-
   "clusters": [
-    { "id": "C-01", "size": 312, "method": "common_input+connected_components", "members": ["E-0001"] },
-    { "id": "C-02", "size": 3, "method": "common_input+connected_components", "members": ["E-0002", "E-0003", "E-0004"] },
-    { "id": "C-03", "size": 9, "method": "coinjoin_output_grouping", "members": ["E-0005", "E-0006", "E-0007"] },
-    { "id": "C-04", "size": 2, "method": "known_service_match", "members": ["E-0008"] }
+    {
+      "id": "C-01",
+      "size": 312,
+      "method": "common_input+connected_components",
+      "members": [
+        "E-0001"
+      ]
+    },
+    {
+      "id": "C-02",
+      "size": 3,
+      "method": "common_input+connected_components",
+      "members": [
+        "E-0002",
+        "E-0003",
+        "E-0004"
+      ]
+    },
+    {
+      "id": "C-03",
+      "size": 9,
+      "method": "coinjoin_output_grouping",
+      "members": [
+        "E-0005",
+        "E-0006",
+        "E-0007"
+      ]
+    },
+    {
+      "id": "C-04",
+      "size": 2,
+      "method": "known_service_match",
+      "members": [
+        "E-0008"
+      ]
+    }
   ],
-
   "series": {
     "hourly_volume": [
-      { "hour": "00", "btc": 8 },
-      { "hour": "03", "btc": 14 },
-      { "hour": "06", "btc": 11 },
-      { "hour": "09", "btc": 42 },
-      { "hour": "12", "btc": 63 },
-      { "hour": "15", "btc": 38 },
-      { "hour": "18", "btc": 52 },
-      { "hour": "21", "btc": 29 }
+      {
+        "hour": "00",
+        "btc": 8
+      },
+      {
+        "hour": "03",
+        "btc": 14
+      },
+      {
+        "hour": "06",
+        "btc": 11
+      },
+      {
+        "hour": "09",
+        "btc": 42
+      },
+      {
+        "hour": "12",
+        "btc": 63
+      },
+      {
+        "hour": "15",
+        "btc": 38
+      },
+      {
+        "hour": "18",
+        "btc": 52
+      },
+      {
+        "hour": "21",
+        "btc": 29
+      }
     ],
-    "risk_bands": { "critical": 17, "high": 11, "medium": 14, "low": 196 }
+    "risk_bands": {
+      "critical": 17,
+      "high": 11,
+      "medium": 14,
+      "low": 196
+    }
   },
-
   "geo_breakdown": [
-    { "country": "Russia", "code": "RU", "share": 0.34, "entity_count": 41 },
-    { "country": "Netherlands", "code": "NL", "share": 0.22, "entity_count": 27 },
-    { "country": "Panama", "code": "PA", "share": 0.17, "entity_count": 20 },
-    { "country": "Singapore", "code": "SG", "share": 0.14, "entity_count": 17 },
-    { "country": "United States", "code": "US", "share": 0.13, "entity_count": 16 }
+    {
+      "country": "Russia",
+      "code": "RU",
+      "share": 0.34,
+      "entity_count": 41
+    },
+    {
+      "country": "Netherlands",
+      "code": "NL",
+      "share": 0.22,
+      "entity_count": 27
+    },
+    {
+      "country": "Panama",
+      "code": "PA",
+      "share": 0.17,
+      "entity_count": 20
+    },
+    {
+      "country": "Singapore",
+      "code": "SG",
+      "share": 0.14,
+      "entity_count": 17
+    },
+    {
+      "country": "United States",
+      "code": "US",
+      "share": 0.13,
+      "entity_count": 16
+    }
   ],
-
   "metrics": {
     "evaluated_on": "SAMPLE FIXTURE - illustrative values for UI development only",
     "risk_precision": 0.92,
