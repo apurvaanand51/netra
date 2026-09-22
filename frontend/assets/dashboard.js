@@ -23,6 +23,15 @@ const CARD_TONE = { critical: "crit", high: "high", medium: "med" };
 
 /* ---------------------------------------------------------------- helpers */
 
+/** An amount for a narrow column: "0" for nothing, 2 decimals above 1 BTC,
+ *  4 below. `btc()` rounds everything under 1 to four decimals, which prints
+ *  zero as "0.0000" and claims precision that is not there. */
+const amount = (value) => {
+  const number = Number(value) || 0;
+  if (number === 0) return "0";
+  return btc(number);
+};
+
 const leadOf = (payload, id) => (payload.entities || []).find((item) => item.id === id) || null;
 
 /** "2026-08-11" -> "08-11", and a merged batch "2026-08-14..2026-08-15" -> "08-14→15".
@@ -182,58 +191,274 @@ function renderGraph(payload) {
 
 /* ---------------------------------------------------------- the evidence */
 
+/* ==========================================================================
+   THE NODE RECORD
+
+   The graph answers "where is this, and what is it next to". The panel answers
+   "what IS it" — for every node, not only the leads.
+
+   Three kinds of node exist in the picture and they are not the same thing:
+
+     wallet group, flagged   -- a scored lead with a decomposition and findings
+     wallet group, cleared   -- scored, below the floor, no attribution recorded
+     IP address              -- a network endpoint; it has no behaviour of its
+                                own, and the panel says so rather than letting
+                                its colour imply otherwise
+
+   The connections block is what makes the picture legible: the same edges that
+   are DRAWN are also LISTED, so a node's position is a fact you can read rather
+   than a shape you have to infer by eye.
+   ========================================================================== */
+
+/** Everything the payload knows about a node's edges, grouped by what they mean. */
+function connectionsFor(payload, id) {
+  const byId = new Map((payload.entities || []).map((item) => [item.id, item]));
+  const moneyOut = [], moneyIn = [], controlledFrom = [], controls = [];
+
+  for (const edge of payload.edges || []) {
+    if (edge.kind === "flow") {
+      if (edge.from === id) moneyOut.push(edge);
+      else if (edge.to === id) moneyIn.push(edge);
+    } else if (edge.kind === "control") {
+      if (edge.to === id) controlledFrom.push(edge);
+      else if (edge.from === id) controls.push(edge);
+    }
+  }
+  const byValue = (a, b) => (b.value || 0) - (a.value || 0) || (b.count || 0) - (a.count || 0);
+  const byCount = (a, b) => (b.count || 0) - (a.count || 0);
+  return {
+    moneyOut: moneyOut.sort(byValue), moneyIn: moneyIn.sort(byValue),
+    controlledFrom: controlledFrom.sort(byCount), controls: controls.sort(byCount),
+    label: (key) => byId.get(key)?.label || key,
+    totals: {
+      out: moneyOut.reduce((sum, edge) => sum + (edge.value || 0), 0),
+      in: moneyIn.reduce((sum, edge) => sum + (edge.value || 0), 0),
+      controlObservations: controlledFrom.reduce((sum, edge) => sum + (edge.count || 0), 0),
+    },
+  };
+}
+
+/** One clickable row: the other end of an edge, and the weight of that edge. */
+function connectionRow(id, caption, weight) {
+  return `<button class="conn" data-goto="${esc(id)}" title="${esc(id)}">
+    <span class="cid">${esc(shortKey(id))}</span>
+    <span class="cmeta">${esc(caption)}</span>
+    <span class="cval">${weight}</span>
+  </button>`;
+}
+
+function connectionGroup(title, swatch, rows, moreHtml) {
+  if (!rows.length) return "";
+  return `<div class="conn-group">
+    <h6><i class="sw" style="background:${swatch}"></i>${esc(title)}</h6>
+    ${rows.join("")}${moreHtml || ""}
+  </div>`;
+}
+
+function renderConnections(payload, entity) {
+  const host = document.getElementById("evConnections");
+  const section = document.getElementById("evConnectionsSec");
+  const links = connectionsFor(payload, entity.id);
+  const limit = 5;
+
+  const out = links.moneyOut.slice(0, limit).map((edge) =>
+    connectionRow(edge.to, `${num(edge.count)} transfer${edge.count === 1 ? "" : "s"}`,
+                  `${amount(edge.value)} BTC`));
+  const into = links.moneyIn.slice(0, limit).map((edge) =>
+    connectionRow(edge.from, `${num(edge.count)} transfer${edge.count === 1 ? "" : "s"}`,
+                  `${amount(edge.value)} BTC`));
+  const from = links.controlledFrom.slice(0, limit).map((edge) =>
+    connectionRow(edge.from, "controlled this group", `${num(edge.count)}×`));
+  const to = links.controls.slice(0, limit).map((edge) =>
+    connectionRow(edge.to, "controlled by this address", `${num(edge.count)}×`));
+
+  const more = (total, shown, noun) => total > shown
+    ? `<p class="small muted" style="margin:4px 0 0 8px">+ ${num(total - shown)} more ${noun}</p>`
+    : "";
+
+  const html =
+    connectionGroup("Money out", "var(--brand-2)", out,
+                    more(links.moneyOut.length, limit, "destinations")) +
+    connectionGroup("Money in", "var(--brand-2)", into,
+                    more(links.moneyIn.length, limit, "sources")) +
+    connectionGroup("Controlled from", "var(--accent)", from,
+                    more(links.controlledFrom.length, limit, "addresses")) +
+    connectionGroup("Wallet groups it controlled", "var(--accent)", to,
+                    more(links.controls.length, limit, "groups"));
+
+  section.hidden = !html;
+  host.innerHTML = html;
+  if (html) {
+    const totals = links.totals;
+    // For an endpoint the observations are the ones IT made (edges it owns), not
+    // the ones pointing at it: counting the wrong direction printed
+    // "1 group · 0 observations" beside a row that plainly said "24×".
+    const ipObservations = links.controls.reduce((sum, edge) => sum + (edge.count || 0), 0);
+    const summary = entity.kind === "ip"
+      ? `${num(links.controls.length)} group${links.controls.length === 1 ? "" : "s"} · ` +
+        `${num(ipObservations)} observations`
+      : `${amount(totals.out)} BTC out · ${amount(totals.in)} BTC in · ` +
+        `${num(links.controlledFrom.length)} hosting ` +
+        `address${links.controlledFrom.length === 1 ? "" : "es"}`;
+    host.insertAdjacentHTML("beforeend", `<p class="conn-summary">${summary}</p>`);
+  }
+
+  // Rows navigate. Delegated, so re-rendering the panel never loses handlers.
+  host.onclick = (event) => {
+    const row = event.target.closest("[data-goto]");
+    if (row) select(row.dataset.goto);
+  };
+}
+
+/** A tiny inline-SVG trend.
+ *
+ * Drawn rather than charted: a Chart.js instance per selected node would mean a
+ * canvas per click for a line of four points. This was deleted once by accident
+ * while replacing the function next to it, which broke the whole panel for every
+ * node -- a reminder that "replace the function below this one" is a move that
+ * needs the surrounding text checked, not just the target.
+ */
+function sparkline(history, width, height) {
+  if (history.length < 2) return "";
+  const values = history.map((row) => Number(row.risk) || 0);
+  const step = width / (values.length - 1);
+  const tokens = themeTokens();
+  const y = (value) => (height - (value / 100) * height).toFixed(1);
+  return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}"
+               preserveAspectRatio="none" style="display:block;margin-bottom:8px">
+    <polyline points="${values.map((v, i) => `${(i * step).toFixed(1)},${y(v)}`).join(" ")}"
+              fill="none" stroke="${tokens.brand}" stroke-width="2.5"
+              stroke-linejoin="round" stroke-linecap="round"/>
+    ${values.map((v, i) => `<circle cx="${(i * step).toFixed(1)}" cy="${y(v)}" r="3.5"
+        fill="${tokens.surface}" stroke="${tokens.brand}" stroke-width="2.5"/>`).join("")}
+  </svg>`;
+}
+
 function renderEvidence(payload) {
   const entity = state.selected;
   const sections = document.getElementById("evSections");
   const meter = document.getElementById("evMeter");
+  const kicker = document.getElementById("evKicker");
+  const identity = document.getElementById("evIdentity");
+  const meta = document.getElementById("evMeta");
+  const ack = document.getElementById("ackBtn");
+  const footnote = document.getElementById("evFootnote");
 
   if (!entity) {
-    document.getElementById("evIdentity").textContent = "Nothing selected";
-    document.getElementById("evMeta").textContent =
-      "Click a lead on the left, or a node in the graph.";
+    // The empty state EXPLAINS THE PICTURE instead of sitting blank. This panel is
+    // where a first-time viewer finds out what the graph is.
+    kicker.textContent = "Nothing selected";
+    identity.textContent = "The picture, explained";
+    meta.innerHTML =
+      "Each <b>circle</b> is one wallet group — a set of addresses proved to share " +
+      "an owner — and its <b>size is its priority</b>. Each <b>square</b> is an IP " +
+      "address. <b>Solid lines</b> are money moving between groups; <b>dashed " +
+      "lines</b> are an address controlling a group. Click any node, or a lead on " +
+      "the left, and its full record appears here.";
     document.getElementById("evKpi").innerHTML = "";
     meter.hidden = true;
     sections.innerHTML = "";
-    document.getElementById("ackBtn").disabled = true;
+    document.getElementById("evConnectionsSec").hidden = true;
+    document.getElementById("evConnections").innerHTML = "";
+    document.getElementById("traceBanner").hidden = true;
+    ack.disabled = true;
+    ack.textContent = "Acknowledge";
+    document.getElementById("evCase").href = "#";
+    document.getElementById("evDetail").href = "anomalies.html";
+    footnote.hidden = true;
     return;
   }
+  footnote.hidden = false;
 
-  document.getElementById("evIdentity").textContent =
-    `${shortKey(entity.id)} · ${entity.graph_role || entity.kind}`;
-  document.getElementById("evMeta").textContent =
-    `${entity.label} — ${num(entity.tx_count)} transactions, first seen ` +
-    `${String(entity.first_seen || "").slice(0, 10)}`;
+  const isIp = entity.kind === "ip";
+  // Named differently from the shared helper on purpose: `const isLead = isLead(...)`
+  // shadows the function and reads it inside its own initialiser, which is a
+  // temporal-dead-zone ReferenceError rather than a shadowed call.
+  const flagged = isLead(entity);
+  const links = connectionsFor(payload, entity.id);
 
+  // ---- who and what ------------------------------------------------------
+  kicker.textContent = isIp ? "Network endpoint" : flagged ? "Lead" : "Scored group";
+  identity.textContent = isIp ? entity.label : shortKey(entity.id);
+  meta.textContent = isIp
+    ? `IP address observed broadcasting transactions for ${num(links.controls.length)} ` +
+      `wallet group(s). It has no behaviour of its own — the priority below is the ` +
+      `PEAK priority of the groups it controlled.`
+    : `${entity.label} — ${entity.role || entity.graph_role || "wallet group"}`;
+
+  // ---- numbers -----------------------------------------------------------
+  document.getElementById("evKpi").innerHTML = isIp
+    ? `<div><span>Groups controlled</span><b>${num(links.controls.length)}</b></div>
+       <div><span>Observations</span><b>${num(entity.tx_count)}</b></div>
+       <div><span>Countries</span><b>${num((entity.geo || []).length)}</b></div>`
+    : `<div><span>Value moved</span><b>${btc(entity.value_btc)}</b></div>
+       <div><span>Group size</span><b>${num(entity.community_size)}</b></div>
+       <div><span>Countries</span><b>${num(entity.country_count)}</b></div>`;
+
+  // ---- priority ----------------------------------------------------------
   document.getElementById("evRisk").textContent = entity.risk;
   const band = document.getElementById("evBand");
   band.textContent = entity.risk_band;
   band.className = `sev ${CARD_TONE[entity.risk_band] || "med"}`;
-  document.getElementById("evRiskNote").textContent =
-    `${num(entity.confidence * 100, 0)}% of the maximum`;
+  const note = document.getElementById("evRiskNote");
+  if (isIp) {
+    note.textContent = "inherited from the wallets";
+  } else {
+    const history = entity.history || [];
+    const peak = history.reduce((best, row) => Math.max(best, row.risk || 0), entity.risk);
+    note.textContent = history.length > 1 && peak > entity.risk
+      ? `peak ${peak} earlier in the capture`
+      : `${num((entity.confidence || 0) * 100, 0)}% of the maximum`;
+  }
   meter.hidden = false;
   const fill = document.getElementById("evFill");
   fill.style.width = "0%";
   fill.style.background = bandColour(entity.risk_band);
   requestAnimationFrame(() => { fill.style.width = `${entity.risk}%`; });
 
-  document.getElementById("evKpi").innerHTML = `
-    <div><span>Value moved</span><b>${btc(entity.value_btc)}</b></div>
-    <div><span>Group size</span><b>${num(entity.community_size)}</b></div>
-    <div><span>Countries</span><b>${num(entity.country_count)}</b></div>`;
+  // ---- the edges, listed -------------------------------------------------
+  renderConnections(payload, entity);
 
-  const alerts = (payload.alerts || []).find((item) => item.entity === entity.id);
-  const ack = document.getElementById("ackBtn");
-  ack.disabled = !alerts || alerts.status !== "new";
-  ack.textContent = alerts && alerts.status !== "new" ? `Acknowledged (${alerts.status})` : "Acknowledge";
-  ack.onclick = () => acknowledge(entity, alerts);
+  // ---- what this node is, in facts ---------------------------------------
+  const facts = [];
+  if (isIp) {
+    facts.push(["Address", `<span class="mono">${esc(entity.label)}</span>`]);
+    facts.push(["Entity key", `<span class="mono">${esc(entity.id)}</span>`]);
+    for (const fact of entity.facts || []) facts.push([fact.label, esc(fact.value)]);
+    facts.push(["Countries seen", (entity.geo || []).map(esc).join(", ") || "—"]);
+  } else {
+    const addresses = entity.addresses || [];
+    facts.push(["Group key", `<span class="mono">${esc(entity.id)}</span>`]);
+    facts.push(["Role in the flow", esc(entity.graph_role || entity.role || "—")]);
+    facts.push(["Addresses", `${num(addresses.length)} ` +
+      `<span class="mono" style="font-size:10.5px;color:var(--ink-3)">` +
+      `${addresses.slice(0, 2).map(esc).join(" ")}${addresses.length > 2 ? " …" : ""}</span>`]);
+    facts.push(["Community",
+      entity.community_id === null || entity.community_id === undefined
+        ? "not in one"
+        : `#${entity.community_id}, ${num(entity.community_size)} groups`]);
+    facts.push(["Countries", (entity.geo || []).map(esc).join(", ") || "no country observed"]);
+    facts.push(["Network operators", (entity.asn || []).map(esc).join(", ") || "—"]);
+    facts.push(["First seen", esc(String(entity.first_seen || "—").slice(0, 16).replace("T", " "))]);
+    facts.push(["Last seen", esc(String(entity.last_seen || "—").slice(0, 16).replace("T", " "))]);
+    if (entity.anomaly_score !== undefined && entity.anomaly_score !== null) {
+      facts.push(["Unusualness", `${num(entity.anomaly_score, 4)} ` +
+        `<span class="small muted">unsupervised, not used to rank</span>`]);
+    }
+    if ((entity.typology || []).length) {
+      facts.push(["Matched patterns", entity.typology.map(esc).join(", ")]);
+    }
+  }
+  const factHtml = `<div class="ev-sec"><h5>What this node is</h5>
+    ${facts.map(([key, value]) => `<div class="kv"><span class="k">${esc(key)}</span>
+      <span class="v" style="text-align:right">${value}</span></div>`).join("")}</div>`;
 
-  // 1. the factors, compact. The full waterfall is on the anomalies page; here
-  //    the analyst needs the shape of the explanation, not the whole chart.
+  // ---- why it scored, its findings, its history ---------------------------
   const features = (entity.features || []).slice(0, 6);
   const listed = features.reduce((sum, item) => sum + item.importance, 0) * 100;
   const other = (entity.explanation?.other_contribution || 0) * 100;
-  sections.innerHTML = `
-    <div class="ev-sec">
+
+  const whyHtml = features.length ? `<div class="ev-sec">
       <h5>What pushed this score</h5>
       ${features.map((item) => `
         <div class="kv">
@@ -255,11 +480,18 @@ function renderEvidence(payload) {
       <a href="anomalies.html?entity=${encodeURIComponent(entity.id)}"
          style="font-size:12px;color:var(--brand);display:inline-block;margin-top:9px">
         See the full evidence and the money trail →</a>
-    </div>
+    </div>`
+    : isIp ? "" : `<div class="ev-sec"><h5>What pushed this score</h5>
+        <p style="font-size:12.5px;color:var(--ink-2)">
+          No attribution was recorded for this group in this batch — attributions are
+          computed for groups that reached the review floor. It was scored, and its
+          priority is above.</p></div>`;
 
+  const reasons = entity.reasons || [];
+  const findingsHtml = isIp ? "" : `
     <div class="ev-sec">
       <h5>Findings</h5>
-      ${(entity.reasons || []).map((reason) => `
+      ${reasons.map((reason) => `
         <div class="reason">
           <div class="rc" style="background:${
             { critical: "var(--crit)", high: "var(--high)", medium: "var(--med)" }[reason.severity]
@@ -269,23 +501,36 @@ function renderEvidence(payload) {
           </div>
           <div class="rx"><b>${esc(reason.title)}</b><span>${esc(reason.detail)}</span></div>
         </div>`).join("") || `<p style="font-size:12.5px;color:var(--ink-2)">
-          No rule-based signature. The lead rests on the structural factors above.</p>`}
-    </div>
+          No rule-based signature. What puts it where it is is the structural position
+          above, and the connections listed before it.</p>`}
+    </div>`;
 
+  const history = entity.history || [];
+  const historyHtml = history.length ? `
     <div class="ev-sec">
-      <h5>Risk across batches</h5>
-      ${sparkline(entity.history || [], 348, 54)}
-      ${(entity.history || []).map((row) => `
+      <h5>Priority across batches</h5>
+      ${sparkline(history, 348, 54)}
+      ${history.map((row) => `
         <div class="kv"><span class="k mono">${esc(String(row.window).replace("window-", ""))}</span>
           <span class="v">${esc(row.risk)}
             <span style="color:${bandColour(row.band)}">●</span></span></div>`).join("")}
-    </div>`;
+    </div>` : "";
 
-  document.getElementById("evCase").href = `/report/${encodeURIComponent(entity.id)}?window=${payload.window?.id || ""}`;
-  document.getElementById("evDetail").href = `anomalies.html?entity=${encodeURIComponent(entity.id)}`;
+  sections.innerHTML = factHtml + whyHtml + findingsHtml + historyHtml;
 
-  // The trail banner. It is a banner rather than a panel because a path is a
-  // sentence, and it belongs next to the graph that draws it.
+  // ---- actions -----------------------------------------------------------
+  const alerts = (payload.alerts || []).find((item) => item.entity === entity.id);
+  ack.disabled = isIp || !alerts || alerts.status !== "new";
+  ack.textContent = alerts && alerts.status !== "new"
+    ? `Acknowledged (${alerts.status})` : "Acknowledge";
+  ack.onclick = () => acknowledge(entity, alerts);
+
+  document.getElementById("evCase").href =
+    `/report/${encodeURIComponent(entity.id)}?window=${payload.window?.id || ""}`;
+  document.getElementById("evDetail").href =
+    `anomalies.html?entity=${encodeURIComponent(entity.id)}`;
+
+  // ---- the trail banner --------------------------------------------------
   const traces = (payload.traces || []).filter((trace) => trace.seed === entity.id);
   const banner = document.getElementById("traceBanner");
   if (traces.length) {
@@ -303,24 +548,6 @@ function renderEvidence(payload) {
   }
 }
 
-/** A tiny inline-SVG trend. Drawn rather than charted: a Chart.js instance per
- *  lead would be a canvas per click for a line of five points. */
-function sparkline(history, width, height) {
-  if (history.length < 2) return "";
-  const values = history.map((row) => Number(row.risk) || 0);
-  const step = width / (values.length - 1);
-  const points = values.map((value, index) =>
-    `${(index * step).toFixed(1)},${(height - (value / 100) * height).toFixed(1)}`).join(" ");
-  const tokens = themeTokens();
-  return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}"
-               preserveAspectRatio="none" style="display:block;margin-bottom:8px">
-    <polyline points="${points}" fill="none" stroke="${tokens.brand}" stroke-width="2.5"
-              stroke-linejoin="round" stroke-linecap="round"/>
-    ${values.map((value, index) => `<circle cx="${(index * step).toFixed(1)}"
-        cy="${(height - (value / 100) * height).toFixed(1)}" r="3.5"
-        fill="${tokens.surface}" stroke="${tokens.brand}" stroke-width="2.5"/>`).join("")}
-  </svg>`;
-}
 
 async function acknowledge(entity, alert) {
   if (!alert) return;

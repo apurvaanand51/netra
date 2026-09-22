@@ -288,6 +288,13 @@ def process_window(
 
     # A merge is a finding, so it is recorded as an event like any other.
     for merge in resolution.merges:
+        # The absorbed groups stop being groups, so their open alerts stop being
+        # open leads. Without this the queue counts an item no page can show.
+        # `merge.absorbed` is a LIST: a merge can fold several clusters into one
+        # survivor at once, and binding the list straight to a SQL parameter is
+        # an InterfaceError rather than a wrong answer.
+        for absorbed in merge.absorbed:
+            store.close_merged_alerts(absorbed, merge.survivor, window_id)
         events.append({
             "window_id": window_id,
             "entity_key": merge.survivor,

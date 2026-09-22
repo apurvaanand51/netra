@@ -26,15 +26,35 @@ data/*
 #
 # If you retrain, the artifact changes: that is a real change worth reviewing
 # and committing, not noise to be ignored.
+#
+# ORDER MATTERS, AND SO DOES THE COMMENT FORMAT. Two mistakes were live here and
+# neither was visible from reading the file:
+#
+#   1. `models/*` sat AFTER the negations. In gitignore the LAST matching rule
+#      wins, so it overrode every one of them and nothing in models/ was ever
+#      tracked -- a fresh clone had no scorecard, and the numbers quoted
+#      throughout the documentation could not be checked against it.
+#   2. `!models/risk.joblib   # RandomForest risk scorer` is not a pattern with a
+#      comment. A `#` only starts a comment at the beginning of a line, so the
+#      whole string was the pattern, spaces and prose included, and it matched
+#      nothing.
+#
+# Broad ignore first, then the exceptions, one pattern per line, comments above.
 models/*
 !models/.gitkeep
-!models/risk.joblib             # RandomForest risk scorer (model #2)
-!models/anomaly.joblib          # IsolationForest anomaly detector (model #1)
-!models/feature_columns.json    # the exact feature order the models expect
-!models/metrics.json            # the measured scorecard, quoted in every report
-!models/ENVIRONMENT.txt         # versions that produced the artifacts (compat check)
-!models/reference_distribution.json  # the training distribution the drift check compares against
-                                # -- without it the console can only say "not measured"
+# RandomForest risk scorer (model #2)
+!models/risk.joblib
+# IsolationForest anomaly detector (model #1)
+!models/anomaly.joblib
+# the exact feature order the models expect
+!models/feature_columns.json
+# the measured scorecard, quoted in every report
+!models/metrics.json
+# versions that produced the artifacts (compatibility check)
+!models/ENVIRONMENT.txt
+# the training distribution the drift check compares against -- without it the
+# console can only say "not measured"
+!models/reference_distribution.json
 
 # ---------------- Uploads / runtime output ----------------
 uploads/

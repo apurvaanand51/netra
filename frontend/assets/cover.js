@@ -13,6 +13,29 @@
 
 "use strict";
 
+function initWhyUs() {
+  const modal = document.getElementById("whyUsModal");
+  const open = document.getElementById("whyUsBtn");
+  const close = () => {
+    modal.classList.remove("on");
+    modal.hidden = true;
+    open.focus();
+  };
+  const show = () => {
+    modal.hidden = false;
+    requestAnimationFrame(() => modal.classList.add("on"));
+    document.getElementById("whyUsClose").focus();
+  };
+
+  open.onclick = show;
+  document.getElementById("whyUsClose").onclick = close;
+  document.getElementById("whyUsDone").onclick = close;
+  modal.onclick = (event) => { if (event.target === modal) close(); };
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modal.classList.contains("on")) close();
+  });
+}
+
 function statCard(label, value, unit, note, tone) {
   return `<div class="stat ${tone || ""}">
     <div class="k">${esc(label)}</div>
@@ -22,6 +45,7 @@ function statCard(label, value, unit, note, tone) {
 }
 
 (async function main() {
+  initWhyUs();
   const health = await NETRA.init();
   const host = document.getElementById("coverStats");
   const state = document.getElementById("coverState");

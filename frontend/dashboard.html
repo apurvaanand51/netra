@@ -58,6 +58,11 @@
           <span class="lg"><i class="sw mix"></i>mixing</span>
           <span class="lg">— money moved</span>
           <span class="lg">┄ controlled from</span>
+          <span class="lg">size = priority</span>
+        </div>
+        <div class="gt-help" id="gtHelp">
+          Each circle is one wallet group, sized by its priority. Squares are IP addresses.
+          Solid lines are money moving, dashed lines are control. Click any node for its full record.
         </div>
       </div>
       <div id="graph"></div>
@@ -73,13 +78,12 @@
       </div>
     </main>
 
-    <!-- EVIDENCE -->
+    <!-- EVIDENCE: everything known about the selected node -->
     <aside class="evidence">
       <div class="ev-head">
-        <div class="ehk">Selected lead</div>
-        <div id="evIdentity" style="font-size:15px;font-weight:700">Nothing selected</div>
-        <div style="font-size:12px;color:var(--ink-3);margin-top:4px" id="evMeta">
-          Click a lead on the left, or a node in the graph.</div>
+        <div class="ehk" id="evKicker">Nothing selected</div>
+        <div id="evIdentity" style="font-size:15px;font-weight:700">—</div>
+        <div id="evMeta" style="font-size:12px;color:var(--ink-2);margin-top:5px;line-height:1.5"></div>
       </div>
       <div class="ev-body" id="evBody">
         <div class="ev-kpi" id="evKpi"></div>
@@ -91,6 +95,14 @@
             <span style="margin-left:auto;font-size:11.5px;color:var(--ink-3)" id="evRiskNote"></span>
           </div>
           <div class="risk-track"><i class="rfill" id="evFill" style="width:0"></i></div>
+        </div>
+
+        <!-- Where this node sits in the graph. This is what makes the picture
+             readable: the same edges that are drawn are also listed, so a node's
+             position is a fact on the panel and not something to infer by eye. -->
+        <div class="ev-sec" id="evConnectionsSec" hidden>
+          <h5>Connections in this picture</h5>
+          <div id="evConnections"></div>
         </div>
 
         <div id="evSections"></div>

@@ -55,12 +55,10 @@
         <h4 style="font-size:12px;color:var(--ink-3);font-weight:700;letter-spacing:.1em;
                    text-transform:uppercase;margin-bottom:13px">Team Vortex</h4>
         <div class="team-grid">
-          <div><div class="tn">Apurv</div><div class="tr">Captain · Integrator · Demo</div></div>
-          <div><div class="tn">[ name ]</div><div class="tr">Platform · API · Interface</div></div>
-          <div><div class="tn">[ name ]</div><div class="tr">Data · Ingestion · Correlation</div></div>
-          <div><div class="tn">[ name ]</div><div class="tr">Machine Learning · Evaluation</div></div>
-          <div><div class="tn">[ name ]</div><div class="tr">[ role ]</div></div>
-          <div><div class="tn">[ name ]</div><div class="tr">[ role ]</div></div>
+          <div><div class="tn">Apurva Anand, Ishika, Arjita</div><div class="tr">Captain · Integrator · Demo</div></div>
+          <div><div class="tn">Apurva Anand, Himanshu Rai</div><div class="tr">Platform · API · Interface</div></div>
+          <div><div class="tn">Himanshu Rai, Apurva Anand, Tabish</div><div class="tr">Data · Ingestion · Correlation</div></div>
+          <div><div class="tn">Himanshu Rai, Mirza Hayat</div><div class="tr">Machine Learning · Evaluation</div></div>
         </div>
       </div>
       <div>
@@ -89,7 +87,85 @@
         </svg>
       </a>
       <a class="btn btn-ghost" href="dataset.html">See what is in the data</a>
+      <button class="btn btn-ghost" id="whyUsBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.6 2.6 0 1 1 4.5 1.8c-.9.8-2 1.2-2 2.7"/>
+          <path d="M12 17h.01"/>
+        </svg>
+        Why Us?
+      </button>
       <span class="mono" style="font-size:12.5px;color:var(--ink-3)" id="coverState"></span>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="whyUsModal" role="dialog" aria-modal="true"
+       aria-labelledby="whyUsTitle" hidden>
+    <div class="modal">
+      <div class="modal-hd">
+        <div class="mi">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l2.8 5.7L21 9.6l-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9L12 3z"/>
+          </svg>
+        </div>
+        <div class="mt">
+          <div class="mkick">The NETRA difference</div>
+          <h3 id="whyUsTitle">Why us?</h3>
+          <span>From raw traffic to an explainable investigation workflow</span>
+        </div>
+        <button class="mx" id="whyUsClose" type="button" aria-label="Close Why Us">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+               stroke-linecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="modal-bd">
+        <div class="verdict">
+          <div class="vscore">01</div>
+          <div class="vt"><b>One connected investigation picture</b>
+            <span>NETRA joins blockchain behavior, wallet identity, and network-control evidence in one offline workflow.</span></div>
+        </div>
+
+        <div class="mtl">
+          <h5>What makes the solution different</h5>
+          <div class="tl-item">
+            <div class="tn">1</div>
+            <div class="tc"><b>Monitoring, not just a one-time score</b>
+              <span>Stable wallet identities preserve history across batches, so the system can show escalation, dormancy, new entities, and cluster merges.</span></div>
+          </div>
+          <div class="tl-item">
+            <div class="tn">2</div>
+            <div class="tc"><b>On-chain plus network intelligence</b>
+              <span>Bitcoin flows are joined with IP, country, and network metadata to reveal who moved money and where activity was controlled from.</span></div>
+          </div>
+          <div class="tl-item">
+            <div class="tn">3</div>
+            <div class="tc"><b>Explainable by construction</b>
+              <span>Every lead shows the factors behind its priority score, with contributions that reconcile to the displayed result instead of hiding the reasoning.</span></div>
+          </div>
+          <div class="tl-item">
+            <div class="tn">4</div>
+            <div class="tc"><b>Built for sensitive environments</b>
+              <span>The complete system runs locally and offline, with no cloud dependency, no external requests, and no third-party GeoIP lookup.</span></div>
+          </div>
+          <div class="tl-item">
+            <div class="tn">5</div>
+            <div class="tc"><b>Evidence before action</b>
+              <span>Data-quality gates, drift warnings, estimated fund trails, reports, and analyst acknowledgement keep the human reviewer in control.</span></div>
+          </div>
+        </div>
+
+        <p class="cap" style="margin:4px 0 0">Our claim is focused: NETRA is a prioritisation and investigation tool, not an automatic verdict. Its advantage is the complete, auditable path from traffic to lead.</p>
+      </div>
+
+      <div class="modal-ft">
+        <button class="btn btn-ghost" id="whyUsDone" type="button">Close</button>
+        <a class="btn btn-primary" href="ingest.html">See it in action
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+        </a>
+      </div>
     </div>
   </div>
 

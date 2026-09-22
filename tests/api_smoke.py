@@ -133,6 +133,54 @@ def main() -> int:
                   for e in payload["entities"]
               ))
 
+        # ---- referential integrity of the payload -------------------------
+        #
+        # Every id in the payload must resolve to a node the payload contains.
+        # These came from the v1 test suite and were dropped in the rebuild; both
+        # of the bugs they would have caught happened to us anyway:
+        #   * control edges pointed at raw IPs that were not nodes, so the graph
+        #     silently drew edges into empty space -- fixed by emitting IP
+        #     endpoints as first-class nodes;
+        #   * an alert row survived a merge under a key that no longer named a
+        #     group, so following it asked for a case dossier that 404'd.
+        # A payload is a small graph, and a graph with dangling references is not
+        # a smaller truth, it is a wrong one.
+        known = {entity["id"] for entity in payload["entities"]}
+        dangling = [edge for edge in payload["edges"]
+                    if edge["from"] not in known or edge["to"] not in known]
+        check("every edge connects nodes the payload contains", not dangling,
+              f"{len(dangling)} dangling, e.g. {dangling[:2]}")
+
+        unknown_alert = [alert for alert in payload["alerts"]
+                         if alert["entity"] not in known]
+        check("every alert points at an entity the payload contains",
+              not unknown_alert, f"{len(unknown_alert)} unknown, e.g. {unknown_alert[:2]}")
+
+        scores = [alert["score"] for alert in payload["alerts"]]
+        check("alerts are ranked most serious first",
+              scores == sorted(scores, reverse=True), f"{scores[:6]} ...")
+
+        check("traces only start from entities the payload contains",
+              all(trace["seed"] in known for trace in payload.get("traces", [])))
+        check("trace paths only visit entities the payload contains",
+              all(hop in known
+                  for trace in payload.get("traces", [])
+                  for sink in trace.get("sinks", [])
+                  for hop in sink.get("path", [])))
+
+        # ---- the two headline counts must agree ---------------------------
+        #
+        # The cover reads "N leads open" from the store; every other page reads the
+        # lead count from the payload. They were 88 and 85 for a while, because
+        # merged entities leave an alert row behind, and both numbers were then on
+        # screen at once with no way for a reader to tell which was the mistake.
+        response = client.get("/health")
+        store_open = response.json()["store"]["open_alerts"]
+        response = client.get("/results", params={"window": "all"})
+        union_leads = sum(1 for entity in response.json()["entities"] if entity.get("lead"))
+        check("the store's open-lead count matches the payload's",
+              store_open == union_leads, f"store {store_open} vs payload {union_leads}")
+
         print("\n=== monitoring feed and alerts ===")
         response = client.get("/events", params={"window": window_id})
         check("GET /events -> 200", response.status_code == 200, response.text[:200])

@@ -134,7 +134,14 @@ CREATE TABLE IF NOT EXISTS alerts (
 );
 """
 
-ALERT_STATUSES = ("new", "acknowledged", "investigating", "closed_false_positive", "closed_escalated")
+ALERT_STATUSES = (
+    "new", "acknowledged", "investigating",
+    "closed_false_positive", "closed_escalated",
+    # NOT an analyst's judgement: the group stopped existing as a group. Kept as
+    # its own status so the lifecycle stays legible and nobody reads a merge as a
+    # decision somebody made.
+    "closed_merged",
+)
 
 
 @dataclass
@@ -556,6 +563,35 @@ class MonitoringStore:
             (entity_key, window_id, window_id, int(risk), int(risk), status),
         )
         self._connection.commit()
+
+    def close_merged_alerts(self, absorbed: str, survivor: str, window_id: int) -> int:
+        """Close the alert of a group that has just been absorbed by another.
+
+        WHY THE ALERT CANNOT STAY OPEN
+        ------------------------------
+        A group raised for review in window 3 can be merged into another group in
+        window 4, at which point its addresses are scored as part of the survivor
+        -- and the survivor's own peak can be far lower, because the merged
+        address set is a different entity with a different score. Observed on the
+        smoke dataset: an absorbed group's alert kept a peak of 53 while the
+        surviving group's recorded scores never exceeded 10.
+
+        Leaving that alert open made the queue claim a lead that no page could
+        open: the cover read "66 leads open" where the payload -- and every page
+        that renders it -- said 65. The better fix is not to reconcile the two
+        counts but to stop the queue from containing an item that is not a group
+        any more. The row is kept and closed, the merge stays visible as a
+        CLUSTER_MERGE event, and the peak that was measured is still in the table
+        for anyone reconstructing the history.
+        """
+        cursor = self._connection.execute(
+            "UPDATE alerts SET status = 'closed_merged', last_window = ?, "
+            "note = COALESCE(note || ' | ', '') || ? "
+            "WHERE entity_key = ? AND status NOT LIKE 'closed%'",
+            (window_id, f"merged into {survivor}", absorbed),
+        )
+        self._connection.commit()
+        return cursor.rowcount
 
     def set_alert_status(self, entity_key: str, status: str, assignee: str | None = None,
                          note: str | None = None) -> None:

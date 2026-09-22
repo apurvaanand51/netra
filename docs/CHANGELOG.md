@@ -18,7 +18,7 @@ unless stated otherwise.
 | Outputs | one ranked table | ranked leads · operation map · fund trails · monitoring feed · case dossier |
 | Time | a single batch, no memory | windowed, with history and deltas |
 | Identity | `E-0001` re-assigned every run | derived from the wallet's own addresses, stable forever |
-| Scale | quadratic in entities × transactions | linear, measured to 1M transactions |
+| Scale | quadratic in entities × transactions | super-linear (≈O(n^1.8)), measured at two points |
 | Explaining | importance × z-score | contributions that **sum exactly to the score** |
 | Evaluation | one 75/25 split | 5-fold CV, calibration, and three experiments answering "is it just rules?" |
 | Robustness | clean input only | SQLite source, validation gate, outlier protection |
@@ -78,8 +78,13 @@ a ten-times-larger evaluation set would have made the pipeline appear to hang.
 | 301,178 | — | 8.93 s | — |
 | 1,003,816 | ~17 h (projected) | **33.34 s** | — |
 
-Throughput is now flat at ~30,000 rows/second from 3k to 1M — the signature of a
-linear implementation. Clustering went 1.02 s → 0.07 s; the structural detectors
+**CORRECTION (measured again later):** the claim above says "linear". Re-measured
+with `python tools/measure.py`, the full pipeline is **super-linear**: 69,690 rows
+→ 65.94 s, and 278,832 rows → 913.11 s. Rows ×4.00, cost per 100k rows ×3.46,
+which is roughly O(n^1.8). The correlate step may well be flat as measured here;
+the pipeline as a whole is not, and the likely term is betweenness centrality in
+the graph analysis. The earlier throughput figures stand as measured for the step
+they measured — the generalisation from them did not. Clustering went 1.02 s → 0.07 s; the structural detectors
 3.60 s → 1.55 s.
 
 **Ingestion** also changed shape: readers now return DataFrames rather than a
