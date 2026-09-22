@@ -23,6 +23,7 @@ const CARD_TONE = { critical: "crit", high: "high", medium: "med" };
 
 /* ---------------------------------------------------------------- helpers */
 
+<<<<<<< HEAD
 /** An amount for a narrow column: "0" for nothing, 2 decimals above 1 BTC,
  *  4 below. `btc()` rounds everything under 1 to four decimals, which prints
  *  zero as "0.0000" and claims precision that is not there. */
@@ -33,6 +34,10 @@ const amount = (value) => {
 };
 
 const leadOf = (payload, id) => (payload.entities || []).find((item) => item.id === id) || null;
+=======
+const entityOf = (payload, id) => (payload.entities || []).find((item) => item.id === id) || null;
+const leadOf = (payload, id) => entityOf(payload, id);
+>>>>>>> 472b2bcf7d1dbd02016547b6dff2bf8a7f7f64e9
 
 /** "2026-08-11" -> "08-11", and a merged batch "2026-08-14..2026-08-15" -> "08-14→15".
  *  A day chip has to be narrow enough that four of them fit beside the scrubber,
@@ -345,6 +350,7 @@ function renderEvidence(payload) {
   const footnote = document.getElementById("evFootnote");
 
   if (!entity) {
+<<<<<<< HEAD
     // The empty state EXPLAINS THE PICTURE instead of sitting blank. This panel is
     // where a first-time viewer finds out what the graph is.
     kicker.textContent = "Nothing selected";
@@ -355,6 +361,11 @@ function renderEvidence(payload) {
       "address. <b>Solid lines</b> are money moving between groups; <b>dashed " +
       "lines</b> are an address controlling a group. Click any node, or a lead on " +
       "the left, and its full record appears here.";
+=======
+    document.getElementById("evIdentity").textContent = "Nothing selected";
+    document.getElementById("evMeta").textContent =
+      "Click a node in the graph or a lead on the left to inspect its details.";
+>>>>>>> 472b2bcf7d1dbd02016547b6dff2bf8a7f7f64e9
     document.getElementById("evKpi").innerHTML = "";
     meter.hidden = true;
     sections.innerHTML = "";
@@ -370,12 +381,20 @@ function renderEvidence(payload) {
   }
   footnote.hidden = false;
 
+<<<<<<< HEAD
   const isIp = entity.kind === "ip";
   // Named differently from the shared helper on purpose: `const isLead = isLead(...)`
   // shadows the function and reads it inside its own initialiser, which is a
   // temporal-dead-zone ReferenceError rather than a shadowed call.
   const flagged = isLead(entity);
   const links = connectionsFor(payload, entity.id);
+=======
+  document.getElementById("evIdentity").textContent =
+    `${shortKey(entity.id)} · ${entity.graph_role || entity.kind}`;
+  document.getElementById("evMeta").textContent =
+    `${entity.label || entity.kind || "entity"} — ${num(entity.tx_count || 0)} transactions, first seen ` +
+    `${String(entity.first_seen || "").slice(0, 10)}`;
+>>>>>>> 472b2bcf7d1dbd02016547b6dff2bf8a7f7f64e9
 
   // ---- who and what ------------------------------------------------------
   kicker.textContent = isIp ? "Network endpoint" : flagged ? "Lead" : "Scored group";
@@ -453,12 +472,42 @@ function renderEvidence(payload) {
     ${facts.map(([key, value]) => `<div class="kv"><span class="k">${esc(key)}</span>
       <span class="v" style="text-align:right">${value}</span></div>`).join("")}</div>`;
 
+<<<<<<< HEAD
   // ---- why it scored, its findings, its history ---------------------------
   const features = (entity.features || []).slice(0, 6);
   const listed = features.reduce((sum, item) => sum + item.importance, 0) * 100;
   const other = (entity.explanation?.other_contribution || 0) * 100;
 
   const whyHtml = features.length ? `<div class="ev-sec">
+=======
+  const nodeBits = [
+    { label: "Type", value: entity.graph_role || entity.kind || "node" },
+    { label: "Risk", value: `${entity.risk ?? 0} (${entity.risk_band || "low"})` },
+    { label: "Transactions", value: num(entity.tx_count || 0) },
+    { label: "Value moved", value: btc(entity.value_btc || 0) },
+    { label: "Countries", value: entity.geo?.length ? entity.geo.join(", ") : "—" },
+    { label: "ASN", value: entity.asn?.length ? entity.asn.join(", ") : "—" },
+    { label: "Addresses", value: entity.addresses?.length ? entity.addresses.slice(0, 3).join(", ") : "—" },
+  ];
+
+  // 1. the factors, compact. The full waterfall is on the anomalies page; here
+  //    the analyst needs the shape of the explanation, not the whole chart.
+  const features = (entity.features || []).slice(0, 6);
+  const listed = features.reduce((sum, item) => sum + item.importance, 0) * 100;
+  const other = (entity.explanation?.other_contribution || 0) * 100;
+  sections.innerHTML = `
+    <div class="ev-sec">
+      <h5>Node details</h5>
+      ${nodeBits.map((item) => `
+        <div class="kv">
+          <span class="k">${esc(item.label)}</span>
+          <span class="v">${esc(item.value)}</span>
+        </div>
+      `).join("")}
+    </div>
+
+    <div class="ev-sec">
+>>>>>>> 472b2bcf7d1dbd02016547b6dff2bf8a7f7f64e9
       <h5>What pushed this score</h5>
       ${features.map((item) => `
         <div class="kv">
@@ -567,7 +616,7 @@ async function acknowledge(entity, alert) {
 /* ------------------------------------------------------------- selection */
 
 function select(entityId) {
-  const entity = leadOf(state.payload, entityId);
+  const entity = entityOf(state.payload, entityId);
   if (!entity) return;
   state.selected = entity;
   state.traced = new Set();
