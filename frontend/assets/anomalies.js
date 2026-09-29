@@ -35,10 +35,24 @@ const state = { payload: null, glossary: null, selected: null };
 // once rather than assumed at each call site.
 const CARD_TONE = { critical: "crit", high: "high", medium: "med" };
 
-function leadCard(entity) {
+function leadCard(entity, rank) {
   const tone = CARD_TONE[entity.risk_band] || "";
+  // A score of 100 is the top of the scale, so several groups can sit on it and
+  // the displayed number stops telling them apart. Where that happens the card
+  // shows the model's probability to three significant figures: the tie stays
+  // visible as a tie, and the order stops looking arbitrary.
+  const saturated = entity.risk >= 100 && typeof entity.confidence === "number";
+  // At exactly 1.0 the forest's vote is unanimous, so there is no further
+  // resolution to show and printing "1.00000" four times would dress a tie up as
+  // a ranking. Say what is true instead.
+  const tiebreak = !saturated ? ""
+    : entity.confidence >= 0.999999
+      ? `<div class="lc-conf mono" title="Every tree agrees: the model has no further resolution for this group">max</div>`
+      : `<div class="lc-conf mono" title="The model's probability for this group; the ranking uses it to order groups tied on priority">${entity.confidence.toFixed(6)}</div>`;
   return `<button class="leadcard ${tone}" data-entity="${esc(entity.id)}">
+    ${rank ? `<span class="lc-rank mono">#${rank}</span>` : ""}
     <div class="lc-num" style="color:${bandColour(entity.risk_band)}">${esc(entity.risk)}</div>
+    ${tiebreak}
     <div class="lc-who">${esc(shortKey(entity.id))}</div>
     <div class="lc-kind">${esc(entity.graph_role || entity.kind)} ·
       ${num(entity.tx_count)} tx</div>
@@ -329,9 +343,15 @@ function select(entityId) {
   // and counting those as leads would report 100 where the answer is 85. The
   // rule lives in the payload's `lead` flag rather than here, so no page has to
   // remember it.
+  // Order: score, then the model's own probability, then id only as a last
+  // resort. Sorting ties by `a.id.localeCompare(b.id)` -- which is what this did
+  // -- opened the leaderboard in alphabetical order of an opaque key, so the
+  // model's most confident lead sat wherever its id happened to fall.
   const leads = state.payload.entities
     .filter(isLead)
-    .sort((a, b) => b.risk - a.risk || a.id.localeCompare(b.id));
+    .sort((a, b) => b.risk - a.risk
+      || (b.confidence || 0) - (a.confidence || 0)
+      || a.id.localeCompare(b.id));
 
   if (!leads.length) {
     document.getElementById("leads").innerHTML =
@@ -339,7 +359,8 @@ function select(entityId) {
     return;
   }
 
-  document.getElementById("leads").innerHTML = leads.slice(0, 14).map(leadCard).join("");
+  document.getElementById("leads").innerHTML =
+    leads.slice(0, 14).map((entity, index) => leadCard(entity, index + 1)).join("");
   document.querySelectorAll(".leadcard").forEach((card) => {
     card.onclick = () => select(card.dataset.entity);
   });

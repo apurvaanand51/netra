@@ -585,7 +585,11 @@ def dataset_report_html(payload: dict[str, Any]) -> str:
 def anomalies_report_html(payload: dict[str, Any], explainers: list[dict[str, Any]]) -> str:
     meta = payload.get("meta") or {}
     entities = [entity for entity in (payload.get("entities") or []) if entity.get("lead")]
-    entities.sort(key=lambda entity: (-int(entity.get("risk") or 0), str(entity.get("id"))))
+    # Score, then the model's probability, then id -- matching the payload, so the
+    # printed list and the screen cannot disagree about which lead comes first.
+    entities.sort(key=lambda entity: (-int(entity.get("risk") or 0),
+                                      -float(entity.get("confidence") or 0),
+                                      str(entity.get("id"))))
     drift = (payload.get("fleet") or {}).get("drift") or {}
     traces = {trace.get("seed"): trace for trace in (payload.get("traces") or [])}
 

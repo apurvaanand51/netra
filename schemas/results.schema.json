@@ -104,7 +104,7 @@
         "cluster_size": { "type": "integer", "minimum": 0 },
         "risk": { "type": "integer", "minimum": 0, "maximum": 100 },
         "risk_band": { "type": "string", "enum": ["critical", "high", "medium", "low"] },
-        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1, "description": "The risk model's probability for this group, unrounded. `risk` is this value rounded to an integer, so among groups tied on `risk` this is what orders them -- the payload is sorted by (risk, confidence), descending. Carried because rounding to 100 destroys the difference between 0.995 and 0.99998, which is exactly the difference an analyst triaging the top of a list needs. Entities below the review floor have no attribution and fall back to risk/100." },
         "anomaly_score": { "type": ["number", "null"], "description": "Raw IsolationForest decision score (lower = more anomalous)" },
         "typology": {
           "type": "array",

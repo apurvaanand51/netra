@@ -228,7 +228,7 @@ computed two honest ways:
 
 | Evaluation | Precision | Recall | F1 | ROC-AUC |
 |---|---|---|---|---|
-| **5-fold CV, folds grouped by batch** | **0.931 ± 0.068** | **0.902 ± 0.074** | **0.915 ± 0.063** | **0.991 ± 0.009** |
+| **5-fold CV, folds grouped by batch** | **0.908 ± 0.059** | **0.882 ± 0.040** | **0.894 ± 0.040** | **0.988 ± 0.008** |
 | Held-out split (1,465 train / 489 test) | 0.907 | 0.867 | 0.886 | 0.981 |
 
 Confusion matrix on the held-out split: **39 TP, 4 FP, 6 FN, 440 TN**.
@@ -249,8 +249,8 @@ accurate" is not an answer:
 
 | Experiment | Result | What it means |
 |---|---|---|
-| Rules alone (the typology detectors) | precision 0.162, recall 0.129, **F1 0.143**, 142 flags | Rules alone are nearly useless as a ranking. |
-| Logistic regression on the same folds | AUC **0.762 ± 0.381** | The linear baseline is unstable across batches — near-chance on some. |
+| Rules alone (the typology detectors) | precision 0.162, recall 0.124, **F1 0.140**, 136 flags | Rules alone are nearly useless as a ranking. |
+| Logistic regression on the same folds | AUC **0.951 ± 0.008** | A linear model over these features recovers most of the forest's ranking power — the features are the work and the forest adds a few points. An earlier run reported this baseline as unstable (0.762 ± 0.381); that was a property of one fold split, not of the model. |
 | Ablation: the 9 noisiest features removed | AUC **0.993 ± 0.005** | No dependence on a fragile feature set. |
 
 So the signal is in the **feature engineering**, not in the classifier's
@@ -261,7 +261,7 @@ of 90 should be right about 90% of the time; this is the measurement that says
 whether it is.
 
 **Decoys, measured on held-out predictions only:** 10 lawful high-volume services
-planted. In-sample precision@25 1.000; **held-out 0.960**; test 1.000. The
+planted. In-sample precision@25 1.000; **held-out 1.000**; test 1.000. The
 held-out number is the one that counts, because it is the only one the model
 could not have memorised.
 
@@ -542,6 +542,7 @@ to.
 | Country bars rendered as 1-pixel slivers | the bar fill was an inline `<i>` with a percentage width — no `display`, so it laid out at zero | Measure the DOM, not the intention. |
 | 533 grey squares | the payload said `critical`/`medium`; the stylesheet said `crit`/`med` | A rule that matches nothing does not error. It silently does nothing. |
 | An explanation that explained a different score | union mode showed a peak risk but explained the current-batch features | If two numbers are on screen together, prove they came from the same row. |
+| The whole leaderboard read 100 | the score is the probability rounded to an integer, and the tie was then broken by **entity key** — so the order was alphabetical and the model's most confident lead sat wherever its id fell | Ranking is a claim about the data. A lexical tiebreak is a claim nobody made. Rank on the number that decided the classification, and publish it. |
 
 ### 16.2 Numbers that disagree
 
@@ -656,7 +657,7 @@ not work yet than let you rely on it.
 **"A perfect score would worry me."**
 It worried us. v1 reported AUC 1.000 from a single random split; the leak was the
 same wallet appearing in training and test. Fixed, the honest number is
-**0.991 ± 0.009** with roughly double the reported uncertainty.
+**0.988 ± 0.008** with roughly double the reported uncertainty.
 
 **"Can it be wrong?"**
 Every way we know of, and the ways are printed: fund trails are proportional

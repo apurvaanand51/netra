@@ -51,7 +51,12 @@ function statCard(label, value, unit, note, tone) {
 
   host.innerHTML =
     statCard("Transactions analysed", num(transactions), "", "every one examined") +
-    statCard("Wallet groups", num(health.store.entities), "",
+    // "Tracked", not just "wallet groups": this figure is the registry's distinct
+    // entity count, which is two higher than the number of groups the capture's
+    // payload carries (a key can exist in the registry without material flow in
+    // the union view). Two numbers with the same label on two pages is how a
+    // reader learns not to trust either.
+    statCard("Wallet groups tracked", num(health.store.entities), "",
              "addresses proved to share an owner") +
     statCard("Days covered", num(windows.length), "",
              "batches processed in order", "a") +

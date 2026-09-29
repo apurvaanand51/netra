@@ -19,6 +19,21 @@
       "file": "COLAB_RETRAIN.md",
       "title": "Retraining on Colab",
       "description": "Why the retrain happens in the cloud, the numpy trap that would silently break the demo, and how the artifacts travel back."
+    },
+    {
+      "file": "LEARNING_GUIDE.md",
+      "title": "Learning guide",
+      "description": "Every domain of the system explained, with the parameters it was measured on."
+    },
+    {
+      "file": "V1_V2_REPORT.md",
+      "title": "v1 → v2 measured comparison",
+      "description": "What changed between the two versions, parameter by parameter, with both sides measured."
+    },
+    {
+      "file": "STATUS.md",
+      "title": "Where we stand",
+      "description": "What is finished and verified, what is open, and what to do next."
     }
   ]
 }

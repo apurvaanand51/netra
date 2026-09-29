@@ -21,7 +21,7 @@ version in [`LEARNING_GUIDE.md`](LEARNING_GUIDE.md).
 
 | | v1 | v2 | What it means |
 |---|---|---|---|
-| **Reported accuracy** | AUC **1.000** (single 75/25 split) | AUC **0.991 ± 0.009** (5-fold, grouped by batch) | The v1 number was inflated by a leak. The honest number is lower and comes with an uncertainty. |
+| **Reported accuracy** | AUC **1.000** (single 75/25 split) | AUC **0.988 ± 0.008** (5-fold, grouped by batch) | The v1 number was inflated by a leak. The honest number is lower and comes with an uncertainty. |
 | **Identity** | `E-0001` by rank — renumbered every run | content-derived, **stable forever** | "This group escalated from 40 to 92" became a true sentence. |
 | **Explanation** | importance × z-score, did not sum to the score | contributions that **sum exactly**, residual **0.0** | The bars now add up to the number above them. |
 | **Time** | one batch, no memory | **4 batches**, 270 events, alert lifecycle, time-to-detection | A report became a tool. |
@@ -168,10 +168,10 @@ model improvement when the hyperparameters never moved would be a fabrication.
 | Evaluation | v1 | v2 | Delta |
 |---|---|---|---|
 | Split | 75/25 random, single | **5-fold CV grouped by batch** + held-out | leak closed |
-| Precision | 1.000 | 0.931 ± 0.068 (CV) · 0.907 (held-out) | honest |
-| Recall | 0.909 | 0.902 ± 0.074 (CV) · 0.867 (held-out) | honest |
-| F1 | 0.952 | 0.915 ± 0.063 (CV) · 0.886 (held-out) | honest |
-| ROC-AUC | **1.000** | **0.991 ± 0.009** (CV) · 0.981 (held-out) | leak closed |
+| Precision | 1.000 | 0.908 ± 0.059 (CV) · 0.907 (held-out) | honest |
+| Recall | 0.909 | 0.882 ± 0.040 (CV) · 0.867 (held-out) | honest |
+| F1 | 0.952 | 0.894 ± 0.040 (CV) · 0.886 (held-out) | honest |
+| ROC-AUC | **1.000** | **0.988 ± 0.008** (CV) · 0.981 (held-out) | leak closed |
 | Confusion matrix | 10 TP / 0 FP / 1 FN / 123 TN | 39 TP / 4 FP / 6 FN / 440 TN | larger, honest |
 | Train / test rows | 399 / 134 | **1,465 / 489** | bigger |
 | Evaluation basis | "planted ground truth, 25% held-out split" | "planted ground truth (cross-validated + held-out split)" | method stated |
@@ -187,11 +187,11 @@ honest outcome — the previous ±0.005 was measuring a leak, not a model.
 
 | Experiment | v1 | v2 | What it answers |
 |---|---|---|---|
-| Rules-only baseline | — | **F1 0.143** (precision 0.162, recall 0.129, 142 flags) | "Is it just rules?" — Not remotely. |
-| Linear baseline | — | **AUC 0.762 ± 0.381** | The instability is the finding: the signal is in the features, not the classifier. |
+| Rules-only baseline | — | **F1 0.140** (precision 0.162, recall 0.129, 142 flags) | "Is it just rules?" — Not remotely. |
+| Linear baseline | — | **AUC 0.951 ± 0.008** | The signal is largely linear *in these features* — which is the point: the feature engineering carries it and the forest adds a few points. An earlier run reported 0.762 ± 0.381 and called the instability a finding; the rerun does not reproduce it, and the correction is stated rather than dropped. |
 | Feature ablation | — | **AUC 0.993 ± 0.005** with 19 features | No dependence on a fragile feature set. |
 | Calibration | — | **Brier 0.020, ECE 0.015** | Whether 90 means 90. |
-| Decoy services | — | 10 planted, **held-out precision 0.960** | Does it flag lawful busy wallets? |
+| Decoy services | — | 10 planted, **held-out precision 1.000** | Does it flag lawful busy wallets? |
 | Training mode | whole-dataset features | **windowed, matching serving scale** | Removes train/serve skew. |
 
 ### 5.3 Anomaly detector — the number that got worse and is published anyway

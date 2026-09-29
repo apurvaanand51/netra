@@ -427,6 +427,7 @@ implementation.
 | `python tasks.py serve [port]` | Start the API and the dashboard |
 | `python tasks.py smoke` | End-to-end check: generate → replay → contract → every HTTP endpoint |
 | `python tasks.py test` | Run the pytest suite |
+| `python tools/measure.py` | Re-measure every figure quoted in `docs/` — the harness those numbers came from |
 | `python tasks.py clean` | Delete generated data, models, output and history |
 
 `make gen | train | replay | payload | drift | serve | smoke | test | clean`
@@ -510,7 +511,7 @@ one machine with no network, because that is what the problem statement demands.
 | Report only what they flagged | **Analyses everything read**, and reports the flagged subset as a share of it |
 | "Trust us, it's AI" | A **trained, measured** model — precision, recall, F1, AUC and calibration against **planted ground truth** |
 | A black-box risk score | Every lead carries contributions that **sum exactly to the score**, and plain-English reasons |
-| A batch report | **Monitoring**: 8 event types across time, an alert lifecycle, and measured time-to-detection |
+| A batch report | **Monitoring**: 8 event types across time, an alert lifecycle (`new → acknowledged → investigating → closed…`, including `closed_merged` when a group is absorbed by another), and measured time-to-detection |
 | Cloud, subscription, foreign-hosted | **Offline, sovereign, auditable** — no data leaves the agency |
 
 ## Two things it does that are easy to miss
@@ -530,12 +531,15 @@ successes is advocacy:
   (precision@20 = 0.050 against a 0.092 base rate). Its earlier 3.6× lift was an
   artifact of whole-dataset features, and the collapse is published rather than
   dropped.
-- A **logistic-regression baseline** on the same grouped folds reaches
-  **AUC 0.762 ± 0.381** against the forest's **0.991 ± 0.009** — and that
-  standard deviation is itself the finding: the linear model is unstable across
-  batches, scoring near-chance on some and well on others. What the ablation
-  below shows is that the *feature engineering*, not the choice of classifier,
-  is where the signal is.
+  - A **logistic-regression baseline** on the same grouped folds reaches
+    **AUC 0.951 ± 0.008** against the forest's **0.988 ± 0.008**. Read plainly:
+    a linear model over these 28 features recovers most of the forest's ranking
+    power, so the *feature engineering* is where the work is, and the forest adds
+    a few points on top. **This corrects an earlier version of this claim.** We
+    previously reported the linear baseline as unstable across batches
+    (0.762 ± 0.381) and treated that instability as the finding. On a rerun with a
+    different fold composition it is stable; the instability was a property of one
+    fold split, not of the model. It is corrected here rather than deleted.
 - Cross-validation was **leaking** — folds split rows from the same batch, and the
   same wallet appears once per batch. Grouping the folds did not move the mean and
   **doubled the reported uncertainty**, which is now what we quote.
@@ -580,7 +584,7 @@ on charts rather than prose — a caption line under each visual, not a paragrap
 | **Ingest** `/ingest.html` | What did we make of the file you gave us? |
 | **Dataset** `/dataset.html` | What is in this data? — the whole capture |
 | **Anomalies** `/anomalies.html` | What looks wrong, in plain words, and why? |
-| **Dashboard** `/dashboard.html` | Where is it, one batch at a time? |
+| **Dashboard** `/dashboard.html` | Where is it, one batch at a time? Click any node — or any row in the panel's connection list — for its complete record |
 | **Documents** `/documents.html` | How it was built, including the mistakes |
 
 Every page that shows a body of evidence also offers it as a **PDF**, rendered for
@@ -612,7 +616,10 @@ registry.
    shows the factors that produced the score and makes them add up, then follows
    the money.
 6. **Dashboard** — the operation map, with the batches on a transport you can
-   play through in order.
+   play through in order. Click any node and the right panel gives its complete
+   record: what it is, its numbers, the factors behind its priority, and every
+   connection listed as a clickable row, so the picture can be walked from the
+   panel instead of read by eye.
 7. **PDF** — the *Download* button on any of those pages opens an A4 report;
    the browser's print-to-PDF produces the file.
 
@@ -636,8 +643,8 @@ batch so the same wallet cannot appear on both sides of a split.
 
 | Model | Metric | Value |
 |---|---|---|
-| Risk (`RandomForest`, supervised) | ROC-AUC · precision · recall · F1 | **0.991 ± 0.009 · 0.931 ± 0.068 · 0.902 ± 0.074 · 0.915 ± 0.063** |
-| Risk, held-out split | precision · recall · F1 · ROC-AUC | 0.907 · 0.867 · 0.886 · 0.981 |
+| Risk (`RandomForest`, supervised) | ROC-AUC · precision · recall · F1 | **0.988 ± 0.008 · 0.908 ± 0.059 · 0.882 ± 0.040 · 0.894 ± 0.040** |
+| Risk, held-out split | precision · recall · F1 · ROC-AUC | 0.909 · 0.889 · 0.899 · 0.985 |
 | Calibration | Brier · expected calibration error | **0.020 · 0.015** |
 | Anomaly (`IsolationForest`, unsupervised) | precision@20 | 0.050 (base rate 0.092 — **below chance**, see below) |
 | Entity grouping | Adjusted Rand Index | **0.999** |
@@ -740,6 +747,8 @@ netra/
 │  └─ assets/theme.css           the design system, extracted whole
 ├─ models/                       trained artifacts + the measured scorecard
 ├─ tests/                        pytest suite, contract validator, API smoke test
+├─ tools/measure.py              re-measures every number quoted in the docs
+├─ context/                      model-to-model handoff: state, decisions, restore notes
 ├─ docs/                         the review, the model card, the changelog, the retrain guide
 ├─ wheels/                       the offline install cache (populate with pip download)
 ├─ tasks.py                      cross-platform task runner

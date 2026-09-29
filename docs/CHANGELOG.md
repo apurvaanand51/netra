@@ -293,6 +293,7 @@ code, and every one is now fixed with a test or a stated rule:
 | 533 grey squares | the payload says `critical`/`medium` and the stylesheet said `crit`/`med`; a rule matched nothing and nothing complained |
 | country bars rendered as slivers | the bar fill was an inline element with a percentage width; it laid out at zero |
 | a fix on disk that did not appear | the browser had cached the stylesheet; static files are now served `no-cache` |
+| every lead on the first screen read 100 | `risk` is the probability rounded to an integer, so 24 groups tied at 100 while the model still separated them (0.99542 … 0.99998). Worse, the tie was broken by **entity key**, so the leaderboard opened in alphabetical order of an opaque id. Ranking now uses the model's probability — published as `confidence` — and the card says `max` when the forest is genuinely unanimous |
 
 ---
 

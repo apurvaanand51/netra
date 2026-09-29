@@ -133,6 +133,77 @@ def main() -> int:
                   for e in payload["entities"]
               ))
 
+        # ---- referential integrity of the payload -------------------------
+        #
+        # Every id in the payload must resolve to a node the payload contains.
+        # These came from the v1 test suite and were dropped in the rebuild; both
+        # of the bugs they would have caught happened to us anyway:
+        #   * control edges pointed at raw IPs that were not nodes, so the graph
+        #     silently drew edges into empty space -- fixed by emitting IP
+        #     endpoints as first-class nodes;
+        #   * an alert row survived a merge under a key that no longer named a
+        #     group, so following it asked for a case dossier that 404'd.
+        # A payload is a small graph, and a graph with dangling references is not
+        # a smaller truth, it is a wrong one.
+        known = {entity["id"] for entity in payload["entities"]}
+        dangling = [edge for edge in payload["edges"]
+                    if edge["from"] not in known or edge["to"] not in known]
+        check("every edge connects nodes the payload contains", not dangling,
+              f"{len(dangling)} dangling, e.g. {dangling[:2]}")
+
+        unknown_alert = [alert for alert in payload["alerts"]
+                         if alert["entity"] not in known]
+        check("every alert points at an entity the payload contains",
+              not unknown_alert, f"{len(unknown_alert)} unknown, e.g. {unknown_alert[:2]}")
+
+        alert_scores = [alert["score"] for alert in payload["alerts"]]
+        check("alerts are ranked most serious first",
+              alert_scores == sorted(alert_scores, reverse=True), f"{alert_scores[:6]} ...")
+
+        check("traces only start from entities the payload contains",
+              all(trace["seed"] in known for trace in payload.get("traces", [])))
+        check("trace paths only visit entities the payload contains",
+              all(hop in known
+                  for trace in payload.get("traces", [])
+                  for sink in trace.get("sinks", [])
+                  for hop in sink.get("path", [])))
+
+        # ---- the leaderboard must be ordered by the model -----------------
+        #
+        # `risk` is round(prediction * 100), so a quarter of the groups can sit on
+        # exactly 100 while the model still separates them. This list used to be
+        # ordered by the rounded score and then by ENTITY KEY, which opened the
+        # leaderboard alphabetically and put the model's most confident lead
+        # wherever its id happened to fall. Ordering is a claim about the data; a
+        # lexical one is a claim nobody made.
+        response = client.get("/results", params={"window": "all"})
+        ordered = [(entity["risk"], entity.get("confidence") or 0)
+                   for entity in response.json()["entities"] if entity.get("lead")]
+        check("leads are ordered by score, then by the model's probability",
+              ordered == sorted(ordered, key=lambda pair: (-pair[0], -pair[1])),
+              f"first out-of-order pair: "
+              f"{next((i for i in range(1, len(ordered)) if ordered[i] > ordered[i - 1]), None)}")
+
+        check("confidence carries the model's probability, not the rounded score",
+              all(entity.get("confidence") is None
+                  or 0 <= entity["confidence"] <= 1
+                  for entity in response.json()["entities"]),
+              "confidence must stay a probability in [0, 1]")
+
+        # ---- the two headline counts must agree ---------------------------
+        #
+        # The cover reads "N leads open" from the store; every other page reads the
+        # lead count from the payload. They were 88 and 85 for a while, because
+        # merged entities left an alert row behind, and both numbers were then on
+        # screen at once with no way for a reader to tell which was the mistake.
+        response = client.get("/health")
+        store_open = response.json()["store"]["open_alerts"]
+        response = client.get("/results", params={"window": "all"})
+        union_leads = sum(1 for entity in response.json()["entities"] if entity.get("lead"))
+        check("the store's open-lead count matches the payload's",
+              store_open == union_leads, f"store {store_open} vs payload {union_leads}")
+
+
         print("\n=== monitoring feed and alerts ===")
         response = client.get("/events", params={"window": window_id})
         check("GET /events -> 200", response.status_code == 200, response.text[:200])

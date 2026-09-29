@@ -506,6 +506,49 @@ def build_window_payload(
             ):
                 explanation_rows[entity_id] = explanation
 
+    # RANK BY WHAT THE MODEL ACTUALLY SAID, NOT BY THE ROUNDED SCORE.
+    #
+    # `risk` is round(prediction * 100), so a quarter of the groups can land on
+    # exactly 100 while the model still distinguishes them: measured on the
+    # shipped capture, the top twelve leads all displayed 100 while their
+    # probabilities ran from 0.99542 to 0.99998 -- eleven distinct values thrown
+    # away by the rounding. Downstream, each page "fixed" the tie its own way:
+    # the anomalies page sorted ties by entity id, so the leaderboard opened in
+    # alphabetical order of an opaque key, and the model's most confident lead sat
+    # wherever its id put it.
+    #
+    # So the float is carried out in `confidence` and the ranking uses it as the
+    # tiebreak. One order, computed once, inherited by the pages and the reports.
+    def probability_of(entity_id: str, risk: int) -> float:
+        """The model's probability for this group, or the rounded score if it was
+        never explained (entities below the review floor get no attribution).
+
+        Rounded to six decimals HERE, which is the same value that is published as
+        `confidence` and the same value the cards print. Ranking on the raw float
+        while displaying six decimals would have reintroduced the original defect
+        one level down: an order decided by a difference the reader cannot see.
+        Two groups showing the same number are therefore genuinely tied, and the
+        key that breaks that tie is openly arbitrary rather than quietly finer.
+        """
+        explanation = explanation_rows.get(entity_id)
+        if explanation and explanation.get("prediction") is not None:
+            return round(float(explanation["prediction"]), 6)
+        return round(risk / 100.0, 6)
+
+    # Score desc, then the model's probability desc, then the entity key ASC as an
+    # openly arbitrary and deterministic last resort.
+    #
+    # The entity key is used deliberately, and the anomaly score is NOT: the
+    # detector's precision@20 is 0.05 against a 0.0916 base rate, so it is not
+    # allowed to rank leads anywhere else in this system and it must not decide the
+    # order here by accident, which is what a stable sort over a list previously
+    # sorted by (risk, anomaly) would have done.
+    #
+    # Note that some groups genuinely tie at a probability of 1.0: the forest's
+    # vote is unanimous and no further resolution exists. The interface says so
+    # rather than printing four identical numbers as if they were a ranking.
+    ranked.sort(key=lambda item: (-item[0], -probability_of(item[2], item[0]), item[2]))
+
     band_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
     for risk, _, _ in ranked:
         band_counts[band_for(risk)] += 1
@@ -546,7 +589,7 @@ def build_window_payload(
             "risk": risk,
             "risk_band": band_for(risk),
             "lead": band_for(risk) != "low",
-            "confidence": round(risk / 100, 4),
+            "confidence": round(probability_of(entity_id, risk), 6),
             "anomaly_score": round(anomaly, 6),
             "typology": _typologies(structural_row),
             "geo": list(entity.get("countries", [])),

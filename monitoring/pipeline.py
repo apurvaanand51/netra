@@ -288,6 +288,13 @@ def process_window(
 
     # A merge is a finding, so it is recorded as an event like any other.
     for merge in resolution.merges:
+        # The absorbed groups stop being groups, so their open alerts stop being
+        # open leads. Without this the queue counts an item no page can show.
+        # `merge.absorbed` is a LIST: a merge can fold several clusters into one
+        # survivor at once, and binding the list straight to a SQL parameter is an
+        # InterfaceError rather than a wrong answer.
+        for absorbed in merge.absorbed:
+            store.close_merged_alerts(absorbed, merge.survivor, window_id)
         events.append({
             "window_id": window_id,
             "entity_key": merge.survivor,
@@ -380,7 +387,20 @@ def replay(
         store_summary = store.summary()
         detection = time_to_detection(store, data_dir, risk_floor=risk_floor)
 
+    # Cached payloads are DERIVED views of the state we just replaced.
+    #
+    # Leaving them in place is how a page ends up reporting 77 leads while
+    # /health says 78: the cache is older than the store it claims to describe,
+    # and nothing about a stale number looks wrong. The API's analysis job clears
+    # this cache already; a replay from the command line went through a different
+    # path and did not, so the two disagreed.
+    invalidated = 0
+    for stale in Path(store_path).parent.glob("window-*.json"):
+        stale.unlink(missing_ok=True)
+        invalidated += 1
+
     return {
+        "invalidated_payloads": invalidated,
         "windows": summaries,
         "store": store_summary,
         "time_to_detection": detection,
@@ -495,6 +515,10 @@ def main(argv: list[str] | None = None) -> int:
               f"{window['alerts']:>7}")
     print()
     print("  store:", result["store"])
+    invalidated = result.get("invalidated_payloads")
+    if invalidated:
+        print(f"  cached views: {invalidated} invalidated "
+              "(they described the previous state)")
     print(format_detection(result["time_to_detection"]))
     print("  ================================================================\n")
     return 0
